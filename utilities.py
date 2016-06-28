@@ -614,7 +614,7 @@ class Dgt():
 class Message():
     # Messages to display devices
     COMPUTER_MOVE = ClassFactory(MessageApi.COMPUTER_MOVE, ['result', 'fen', 'turn', 'game', 'time_control', 'wait'])
-    BOOK_MOVE = ClassFactory(MessageApi.BOOK_MOVE, ['result'])
+    BOOK_MOVE = ClassFactory(MessageApi.BOOK_MOVE, ['result','wait'])
     NEW_PV = ClassFactory(MessageApi.NEW_PV, ['pv', 'mode', 'fen', 'turn'])
     REVIEW_MOVE = ClassFactory(MessageApi.REVIEW_MOVE, ['move', 'fen', 'turn', 'game', 'mode'])
     ENGINE_READY = ClassFactory(MessageApi.ENGINE_READY, ['eng', 'eng_text', 'engine_name', 'has_levels', 'has_960', 'ok_text'])
@@ -640,7 +640,7 @@ class Message():
     CLOCK_STOP = ClassFactory(MessageApi.CLOCK_STOP, ['callback'])
     USER_MOVE = ClassFactory(MessageApi.USER_MOVE, ['move', 'fen', 'turn', 'game'])
     UCI_OPTION_LIST = ClassFactory(MessageApi.UCI_OPTION_LIST, ['options'])
-    GAME_ENDS = ClassFactory(MessageApi.GAME_ENDS, ['result', 'play_mode', 'game', 'custom_fen'])
+    GAME_ENDS = ClassFactory(MessageApi.GAME_ENDS, ['result', 'play_mode', 'game', 'custom_fen', 'wait'])
 
     SYSTEM_INFO = ClassFactory(MessageApi.SYSTEM_INFO, ['info'])
     STARTUP_INFO = ClassFactory(MessageApi.STARTUP_INFO, ['info'])
