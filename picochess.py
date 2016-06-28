@@ -239,6 +239,7 @@ def main():
     def process_fen(fen, legal_fens):
         nonlocal last_computer_fen
         nonlocal last_legal_fens
+        nonlocal searchmoves
 
         # Check if we have to undo a previous move (sliding)
         if fen in last_legal_fens:
@@ -255,7 +256,7 @@ def main():
                     logging.debug("User move while computer move is displayed, reverting to: " + game.board_fen())
                 else:
                     logging.error("last_legal_fens not cleared: " + game.board_fen())
-            elif interaction_mode == Mode.NORMAL:
+            elif interaction_mode == Mode.REMOTE:
                 if (play_mode == PlayMode.USER_WHITE and game.turn == chess.BLACK) or \
                         (play_mode == PlayMode.USER_BLACK and game.turn == chess.WHITE):
                     game.pop()
@@ -272,6 +273,10 @@ def main():
                 logging.debug("Wrong color move -> sliding, reverting to: " + game.board_fen())
             legal_moves = list(game.legal_moves)
             user_move(legal_moves[last_legal_fens.index(fen)])
+            if interaction_mode == Mode.NORMAL or interaction_mode == Mode.REMOTE :
+                legal_fens = []
+            else:
+                legal_fens = compute_legal_fens(game)
 
         # legal move
         elif fen in legal_fens:
@@ -351,8 +356,6 @@ def main():
         turn = game.turn
         game.push(move)
         nonlocal last_computer_fen
-#        nonlocal legal_fens
-#        nonlocal last_legal_fens
         nonlocal searchmoves
         last_computer_fen = None
 
@@ -412,7 +415,7 @@ def main():
             # stop_search()
             if check_game_state(game, play_mode):
                 analyse(game)
-            DisplayMsg.show(Message.REVIEW_MOVE(move=move, fen=fen, turn=turn, game=game.copy(), mode=interaction_mode))
+            DisplayMsg.show(Message.REVIEW_MOVE(move=move, fen=fen, turn=turn, game=game.copy(), mode=interaction_mode, wait=False))
 
         return game
 
