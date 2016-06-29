@@ -120,14 +120,15 @@ class DgtPi(DgtIface):
 
     def display_move_on_clock(self, move, fen, side, beep=False):
         bit_board = Board(fen)
-        try:
+        # illegal moves can occur if a pv from the engine arrives at the same time of a user move.
+        if (bit_board.is_legal(move)):
             move_text = bit_board.san(move)
             if side == ClockSide.RIGHT:
                 move_text = move_text.rjust(11)
             text = self.dgttranslate.move(move_text)
             self._display_on_dgt_pi(text, beep)
-        except:
-            logging.debug('illegal move can not be displayed!')
+        else:
+            logging.debug('illegal move can not be displayed. move:%s fen=%s.',move,fen)
 
     def display_time_on_clock(self, force=False):
         if self.clock_running or force:
