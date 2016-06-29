@@ -807,11 +807,14 @@ def main():
 
                 if case(EventApi.BEST_MOVE):
                     game = handle_move(event.result, game, event.inbook)
-#                    legal_fens = compute_legal_fens(game)
                     break
 
                 if case(EventApi.NEW_PV):
-                    DisplayMsg.show(Message.NEW_PV(pv=event.pv, mode=interaction_mode, fen=game.fen(), turn=game.turn))
+                    # illegal moves can occur if a pv from the engine arrives at the same time as a user move.
+                    if game.is_legal(event.pv[0]):
+                        DisplayMsg.show(Message.NEW_PV(pv=event.pv, mode=interaction_mode, fen=game.fen(), turn=game.turn))
+                    else:
+                        logging.info('illegal move can not be displayed. move:%s fen=%s.',event.pv[0],game.fen())
                     break
 
                 if case(EventApi.NEW_SCORE):
