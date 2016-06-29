@@ -149,8 +149,7 @@ def main():
         If a move is found in the opening book, fire an event in a few seconds.
         :return:
         """
-        tc = time_control
-        tc.start(game.turn)
+        start_clock(wait=False)
         book_move = searchmoves.book(bookreader, game)
         if book_move:
             Observable.fire(Event.NEW_SCORE(score='book', mate=None))
@@ -164,7 +163,6 @@ def main():
             uci_dict = tc.uci()
             uci_dict['searchmoves'] = searchmoves.all(game)
             engine.go(uci_dict)
-        DisplayMsg.show(Message.CLOCK_START(turn=game.turn, time_control=tc, wait=wait, callback=None))
 
     def analyse(game):
         """
@@ -180,9 +178,7 @@ def main():
         Starts a new ponder search on the current game.
         :return:
         """
-        DisplayMsg.show(Message.CLOCK_START(turn=game.turn, time_control=tc, wait=False, callback=None))
-        tc = time_control
-        tc.start(game.turn)
+        start_clock(wait=False)
         analyse(game)
 
     def stop_search():
@@ -298,7 +294,7 @@ def main():
             searchmoves.reset()
             time_control.add_inc(not game.turn)
             if time_control.mode != TimeMode.FIXED:
-                start_clock(wait=not args.disable_ok_message)
+                start_clock(wait=False)
             DisplayMsg.show(Message.COMPUTER_MOVE_DONE_ON_BOARD())
             legal_fens = compute_legal_fens(game)
             last_legal_fens = []
@@ -311,7 +307,7 @@ def main():
                 if game_history.board_fen() == fen:
                     logging.debug("Current game FEN      : " + str(game.fen()))
                     logging.debug("Undoing game until FEN: " + fen)
-                    stop_search()
+                    stop_search_and_clock()
                     while len(game_history.move_stack) < len(game.move_stack):
                         game.pop()
                     last_computer_fen = None
@@ -331,6 +327,7 @@ def main():
                         analyse(game)
                     elif interaction_mode == Mode.OBSERVE or interaction_mode == Mode.REMOTE:
                         observe(game, time_control)
+                    start_clock(wait=False)
                     DisplayMsg.show(Message.USER_TAKE_BACK())
                     break
 
@@ -354,7 +351,6 @@ def main():
         move = result.bestmove
         fen = game.fen()
         turn = game.turn
-        game.push(move)
         nonlocal last_computer_fen
         nonlocal searchmoves
         last_computer_fen = None
@@ -366,6 +362,9 @@ def main():
             stop_search_and_clock()
         elif interaction_mode == Mode.ANALYSIS or interaction_mode == Mode.KIBITZ:
             stop_search()
+
+        game.push(move)
+
         # wait means "in_book" so lateron moves messages must wait too for delay time
         if wait:
             DisplayMsg.show(Message.USER_MOVE(move=move, fen=fen, turn=turn, game=game.copy()))
