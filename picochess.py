@@ -302,6 +302,8 @@ def main():
         # Check if this is a previous legal position and allow user to restart from this position
         else:
             game_history = copy.deepcopy(game)
+            if last_computer_fen:
+                game_history.pop()
             while game_history.move_stack:
                 game_history.pop()
                 if game_history.board_fen() == fen:
