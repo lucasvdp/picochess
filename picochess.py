@@ -292,15 +292,17 @@ def main():
         # Player had done the computer or remote move on the board
         elif (last_computer_fen and fen == game.board_fen()):
             last_computer_fen = None
-            # if check_game_state(game, play_mode) and interaction_mode in (Mode.NORMAL, Mode.REMOTE):
-            # finally reset all alternative moves see: handle_move()
-            nonlocal searchmoves
-            searchmoves.reset()
-            time_control.add_inc(not game.turn)
-            if time_control.mode != TimeMode.FIXED:
-                start_clock()
-            DisplayMsg.show(Message.COMPUTER_MOVE_DONE_ON_BOARD())
-            legal_fens = compute_legal_fens(game)
+            if check_game_state(game, play_mode) and interaction_mode in (Mode.NORMAL, Mode.REMOTE):
+                # finally reset all alternative moves see: handle_move()
+                nonlocal searchmoves
+                searchmoves.reset()
+                time_control.add_inc(not game.turn)
+                if time_control.mode != TimeMode.FIXED:
+                    start_clock()
+                DisplayMsg.show(Message.COMPUTER_MOVE_DONE_ON_BOARD())
+                legal_fens = compute_legal_fens(game)
+            else:
+                legal_fens = []
             last_legal_fens = []
 
         # Check if this is a previous legal position and allow user to restart from this position
@@ -690,6 +692,7 @@ def main():
                     time_control.reset()
                     interaction_mode = Mode.NORMAL
                     last_computer_fen = None
+                    last_legal_fens = []
                     searchmoves.reset()
                     DisplayMsg.show(Message.START_NEW_GAME(time_control=time_control))
                     game_declared = False
