@@ -23,6 +23,8 @@ from dgtiface import *
 from engine import get_installed_engines
 import threading
 
+from configobj import ConfigObj
+
 level_map = ('rnbqkbnr/pppppppp/8/q7/8/8/PPPPPPPP/RNBQKBNR',
              'rnbqkbnr/pppppppp/8/1q6/8/8/PPPPPPPP/RNBQKBNR',
              'rnbqkbnr/pppppppp/8/2q5/8/8/PPPPPPPP/RNBQKBNR',
@@ -126,12 +128,7 @@ class DgtDisplay(Observable, DisplayMsg, threading.Thread):
 
         self.system_index = Settings.VERSION
         self.system_sound_result = None
-        if self.dgttranslate.beep_level == BeepLevel.NO:
-            self.system_sound_index = Beep.OFF
-        elif self.dgttranslate.beep_level == BeepLevel.YES:
-            self.system_sound_index = Beep.ON
-        else:
-            self.system_sound_index = Beep.SOME
+        self.system_sound_index = self.dgttranslate.beep
 
         self.system_language_result = None
         langs = {'en': Language.EN, 'de': Language.DE, 'nl': Language.NL, 'fr': Language.FR, 'es': Language.ES}
@@ -572,6 +569,14 @@ class DgtDisplay(Observable, DisplayMsg, threading.Thread):
                     exit_menu = False
                 else:
                     self.dgttranslate.set_beep(self.system_sound_index)
+                    config = ConfigObj("picochess.ini")
+                    if self.system_sound_index == Beep.ON:
+                        config['beep-level']=BeepLevel.YES.value
+                    elif self.system_sound_index == Beep.OFF:
+                        config['beep-level']=BeepLevel.NO.value
+                    else:
+                        config['beep-level']=self.dgttranslate.some_beep_level
+                    config.write()
                     text = self.dgttranslate.text('B10_okbeep')
             elif self.system_index == Settings.LANGUAGE:
                 if self.system_language_result is None:
@@ -582,6 +587,9 @@ class DgtDisplay(Observable, DisplayMsg, threading.Thread):
                     langs = {Language.EN: 'en', Language.DE: 'de', Language.NL: 'nl', Language.FR: 'fr', Language.ES: 'es'}
                     language = langs[self.system_language_index]
                     self.dgttranslate.set_language(language)
+                    config = ConfigObj("picochess.ini")
+                    config['language']=language
+                    config.write()
                     text = self.dgttranslate.text('B10_oklang')
             else:
                 logging.warning('wrong value for system_index: {0}'.format(self.system_index))

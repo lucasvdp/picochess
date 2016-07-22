@@ -47,7 +47,6 @@ from dgttranslate import DgtTranslate
 
 from logging.handlers import RotatingFileHandler
 
-
 class AlternativeMover:
     def __init__(self):
         self.excludemoves = set()
@@ -412,6 +411,8 @@ def main():
                         default=None)
     parser.add_argument("-beep", "--beep-level", type=int, help="sets a beep level from 0(=no beeps) to 15(=all beeps)",
                         default=0x03)
+    parser.add_argument("-beepsome", "--some-beep-level", type=int, help="sets a beep level from 0(=no beeps) to 15(=all beeps)",
+                        default=0x03)
     parser.add_argument("-uvoice", "--user-voice", type=str, help="voice for user", default=None)
     parser.add_argument("-cvoice", "--computer-voice", type=str, help="voice for computer", default=None)
     parser.add_argument("-inet", "--enable-internet", action='store_true', help="enable internet lookups")
@@ -424,6 +425,7 @@ def main():
     parser.add_argument("-c", "--console", action='store_true', help="use console interface")
 
     args = parser.parse_args()
+
     if args.engine is None:
         el = read_engine_ini()
         args.engine = el[0]['file']  # read the first engine filename and use it as standard
@@ -456,7 +458,7 @@ def main():
             gaviota = None
 
     # This class talks to DgtHw/DgtPi or DgtVr
-    dgttranslate = DgtTranslate(args.beep_level, args.language)
+    dgttranslate = DgtTranslate(args.beep_level,args.some_beep_level, args.language)
     DgtDisplay(args.disable_ok_message, dgttranslate).start()
 
     # Launch web server
