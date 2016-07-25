@@ -536,11 +536,11 @@ def main():
     searchmoves = AlternativeMover()
     interaction_mode = Mode.NORMAL
     play_mode = PlayMode.USER_WHITE
-    if args.time_mode=='TimeMode.BLITZ':
+    if 'blitz' in args.time_mode.lower():
         time_control = TimeControl(TimeMode.BLITZ, minutes_per_game=args.time_minutes_per_game)
-    elif args.time_mode=='TimeMode.FISCHER':
+    elif 'fischer' in args.time_mode.lower():
         time_control = TimeControl(TimeMode.FISCHER, minutes_per_game=args.time_minutes_per_game, fischer_increment=args.time_fischer_increment)
-    elif args.time_mode=='TimeMode.FIXED':
+    elif 'fixed' in args.time_mode.lower():
         time_control = TimeControl(TimeMode.FIXED, seconds_per_move=args.time_seconds_per_move)
     else:
         time_control = TimeControl(TimeMode.BLITZ, minutes_per_game=5)
