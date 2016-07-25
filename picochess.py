@@ -389,6 +389,10 @@ def main():
                         help="enable dgt board on the given serial port such as /dev/ttyUSB0")
     parser.add_argument("-b", "--book", type=str, help="Opening book - full name of book in 'books' folder",
                         default='h-varied.bin')
+    parser.add_argument("-tmode", "--time-mode", type=str, help="TimeMode", default=TimeMode.BLITZ)
+    parser.add_argument("-tsec", "--time-seconds-per-move", type=int, help="Fixed time seconds per move", default=0)
+    parser.add_argument("-tmin", "--time-minutes-per-game", type=int, help="Minutes per game", default=5)
+    parser.add_argument("-tinc", "--time-fischer-increment", type=int, help="Fischer increment in seconds", default=0)
     parser.add_argument("-g", "--enable-gaviota", action='store_true', help="enable gavoita tablebase probing")
     parser.add_argument("-leds", "--enable-revelation-leds", action='store_true', help="enable Revelation leds")
     parser.add_argument("-l", "--log-level", choices=['notset', 'debug', 'info', 'warning', 'error', 'critical'],
@@ -532,7 +536,14 @@ def main():
     searchmoves = AlternativeMover()
     interaction_mode = Mode.NORMAL
     play_mode = PlayMode.USER_WHITE
-    time_control = TimeControl(TimeMode.BLITZ, minutes_per_game=5)
+    if args.time_mode=='TimeMode.BLITZ':
+        time_control = TimeControl(TimeMode.BLITZ, minutes_per_game=args.time_minutes_per_game)
+    elif args.time_mode=='TimeMode.FISCHER':
+        time_control = TimeControl(TimeMode.FISCHER, minutes_per_game=args.time_minutes_per_game, fischer_increment=args.time_fischer_increment)
+    elif args.time_mode=='TimeMode.FIXED':
+        time_control = TimeControl(TimeMode.FIXED, seconds_per_move=args.time_seconds_per_move)
+    else:
+        time_control = TimeControl(TimeMode.BLITZ, minutes_per_game=5)
     last_computer_fen = None
     last_legal_fens = []
     game_declared = False  # User declared resignation or draw
@@ -795,6 +806,9 @@ def main():
                     break
 
                 if case(EventApi.SET_OPENING_BOOK):
+                    config = ConfigObj("picochess.ini")
+                    config['book']=event.book[1][6:]
+                    config.write()
                     logging.debug("changing opening book [%s]", event.book[1])
                     bookreader = chess.polyglot.open_reader(event.book[1])
                     DisplayMsg.show(Message.OPENING_BOOK(book_name=event.book[0], book_text=event.book_text, ok_text=event.ok_text))
@@ -802,6 +816,12 @@ def main():
 
                 if case(EventApi.SET_TIME_CONTROL):
                     time_control = event.time_control
+                    config = ConfigObj("picochess.ini")
+                    config['time-mode']=time_control.mode
+                    config['time-seconds-per-move']=time_control.seconds_per_move
+                    config['time-minutes-per-game']=time_control.minutes_per_game
+                    config['time-fischer-increment']=time_control.fischer_increment
+                    config.write()
                     DisplayMsg.show(Message.TIME_CONTROL(time_text=event.time_text, ok_text=event.ok_text))
                     break
 

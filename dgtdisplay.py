@@ -664,6 +664,7 @@ class DgtDisplay(Observable, DisplayMsg, threading.Thread):
             else:
                 if self.time_mode_index == TimeMode.FIXED:
                     time_control = self.time_control_fixed_map[list(self.time_control_fixed_map)[self.time_control_fixed_index]]
+                    
                 elif self.time_mode_index == TimeMode.BLITZ:
                     time_control = self.time_control_blitz_map[list(self.time_control_blitz_map)[self.time_control_blitz_index]]
                 elif self.time_mode_index == TimeMode.FISCHER:
@@ -674,6 +675,7 @@ class DgtDisplay(Observable, DisplayMsg, threading.Thread):
                     DisplayDgt.show(text)
                     return
                 time_left, time_right = time_control.current_clock_time(self.flip_board)
+                print(time_left)
                 text = self.dgttranslate.text('B10_oktime')
                 self.fire(Event.SET_TIME_CONTROL(time_control=time_control, time_text=text, ok_text=True))
                 DisplayDgt.show(Dgt.CLOCK_START(time_left=time_left, time_right=time_right, side=ClockSide.NONE))
