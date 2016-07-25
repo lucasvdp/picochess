@@ -615,6 +615,9 @@ class DgtDisplay(Observable, DisplayMsg, threading.Thread):
                         text = self.dgttranslate.text('B10_level', msg)
                         DisplayDgt.show(text)
                     else:
+                        config = ConfigObj("picochess.ini")
+                        config['engine-level']=None
+                        config.write()
                         text = self.dgttranslate.text('B10_okengine')
                         self.fire(Event.NEW_ENGINE(eng=eng, eng_text=text, options={}, ok_text=True))
                         self.engine_restart = True
@@ -624,6 +627,9 @@ class DgtDisplay(Observable, DisplayMsg, threading.Thread):
                         msg = sorted(level_dict)[self.engine_level_index]
                         lvl_text = self.dgttranslate.text('B10_level', msg)
                         options = level_dict[msg]
+                        config = ConfigObj("picochess.ini")
+                        config['engine-level']=msg
+                        config.write()
                         self.fire(Event.LEVEL(options={}, level_text=lvl_text))
                     else:
                         options = {}
@@ -919,6 +925,9 @@ class DgtDisplay(Observable, DisplayMsg, threading.Thread):
                         msg = sorted(level_dict)[level_index]
                         text = self.dgttranslate.text('M10_level', msg)
                         logging.debug("Map-Fen: New level {}".format(msg))
+                        config = ConfigObj("picochess.ini")
+                        config['engine-level']=msg
+                        config.write()
                         self.fire(Event.LEVEL(options=level_dict[msg], level_text=text))
                     else:
                         logging.debug('engine doesnt support levels')
@@ -951,10 +960,17 @@ class DgtDisplay(Observable, DisplayMsg, threading.Thread):
                                     self.engine_level_index = len(level_dict) - 1
                                 level_index = self.engine_level_index if self.engine_level_result is None else self.engine_level_result
                                 msg = sorted(level_dict)[level_index]
+                                
                                 lvl_text = self.dgttranslate.text('M10_level', msg)
                                 options = level_dict[msg]
+                                config = ConfigObj("picochess.ini")
+                                config['engine-level']=msg
+                                config.write()
                                 self.fire(Event.LEVEL(options={}, level_text=lvl_text))
                             else:
+                                config = ConfigObj("picochess.ini")
+                                config['engine-level']=None
+                                config.write()
                                 options = {}
                             self.fire(Event.NEW_ENGINE(eng=eng, eng_text=eng_text, options=options, ok_text=False))
                             self.engine_restart = True

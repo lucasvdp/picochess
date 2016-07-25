@@ -46,6 +46,8 @@ from dgtserial import DgtSerial
 from dgttranslate import DgtTranslate
 
 from logging.handlers import RotatingFileHandler
+from configobj import ConfigObj
+
 
 class AlternativeMover:
     def __init__(self):
@@ -382,6 +384,7 @@ def main():
     # Command line argument parsing
     parser = configargparse.ArgParser(default_config_files=[os.path.join(os.path.dirname(__file__), "picochess.ini")])
     parser.add_argument("-e", "--engine", type=str, help="UCI engine executable path", default=None)
+    parser.add_argument("-el", "--engine-level", type=str, help="UCI engine level", default=None)
     parser.add_argument("-d", "--dgt-port", type=str,
                         help="enable dgt board on the given serial port such as /dev/ttyUSB0")
     parser.add_argument("-b", "--book", type=str, help="Opening book - full name of book in 'books' folder",
@@ -411,7 +414,7 @@ def main():
                         default=None)
     parser.add_argument("-beep", "--beep-level", type=int, help="sets a beep level from 0(=no beeps) to 15(=all beeps)",
                         default=0x03)
-    parser.add_argument("-beepsome", "--some-beep-level", type=int, help="sets a beep level from 0(=no beeps) to 15(=all beeps)",
+    parser.add_argument("-beepsome", "--some-beep-level", type=int, help="sets the some beep level from 1 to 14",
                         default=0x03)
     parser.add_argument("-uvoice", "--user-voice", type=str, help="voice for user", default=None)
     parser.add_argument("-cvoice", "--computer-voice", type=str, help="voice for computer", default=None)
@@ -536,6 +539,8 @@ def main():
 
     system_info_thread = threading.Timer(0, display_system_info)
     system_info_thread.start()
+    
+    #level_dict = self.installed_engines[self.engine_index]['level_dict'][args.engine_level]
     engine.startup({})
 
     # Startup - external
@@ -583,6 +588,9 @@ def main():
                     break
 
                 if case(EventApi.NEW_ENGINE):
+                    config = ConfigObj("picochess.ini")
+                    config['engine']=event.eng['file']
+                    config.write()
                     old_file = engine.get_file()
                     engine_shutdown = True
                     # Stop the old engine cleanly
