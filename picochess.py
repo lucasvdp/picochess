@@ -389,7 +389,7 @@ def main():
                         help="enable dgt board on the given serial port such as /dev/ttyUSB0")
     parser.add_argument("-b", "--book", type=str, help="Opening book - full name of book in 'books' folder",
                         default='h-varied.bin')
-    parser.add_argument("-tmode", "--time-mode", type=str, help="TimeMode", default=TimeMode.BLITZ)
+    parser.add_argument("-tmode", "--time-mode", choices=['blitz','fischer','fixed'], help="TimeMode", default='blitz')
     parser.add_argument("-tsec", "--time-seconds-per-move", type=int, help="Fixed time seconds per move", default=0)
     parser.add_argument("-tmin", "--time-minutes-per-game", type=int, help="Minutes per game", default=5)
     parser.add_argument("-tinc", "--time-fischer-increment", type=int, help="Fischer increment in seconds", default=0)
@@ -536,11 +536,11 @@ def main():
     searchmoves = AlternativeMover()
     interaction_mode = Mode.NORMAL
     play_mode = PlayMode.USER_WHITE
-    if 'blitz' in args.time_mode.lower():
+    if 'blitz' == args.time_mode:
         time_control = TimeControl(TimeMode.BLITZ, minutes_per_game=args.time_minutes_per_game)
-    elif 'fischer' in args.time_mode.lower():
+    elif 'fischer' == args.time_mode:
         time_control = TimeControl(TimeMode.FISCHER, minutes_per_game=args.time_minutes_per_game, fischer_increment=args.time_fischer_increment)
-    elif 'fixed' in args.time_mode.lower():
+    elif 'fixed' == args.time_mode:
         time_control = TimeControl(TimeMode.FIXED, seconds_per_move=args.time_seconds_per_move)
     else:
         time_control = TimeControl(TimeMode.BLITZ, minutes_per_game=5)
@@ -817,7 +817,12 @@ def main():
                 if case(EventApi.SET_TIME_CONTROL):
                     time_control = event.time_control
                     config = ConfigObj("picochess.ini")
-                    config['time-mode']=time_control.mode
+                    if time_control.mode==TimeMode.BLITZ:
+                        config['time-mode']='blitz'
+                    elif time_control.mode==TimeMode.FISCHER:
+                        config['time-mode']='fischer'
+                    elif time_control.mode==TimeMode.FIXED:
+                        config['time-mode']='fixed'
                     config['time-seconds-per-move']=time_control.seconds_per_move
                     config['time-minutes-per-game']=time_control.minutes_per_game
                     config['time-fischer-increment']=time_control.fischer_increment
