@@ -487,10 +487,7 @@ def main():
         logging.debug('starting picochess in board mode')
         if args.dgtpi:
             DgtPi(dgtserial, dgttranslate, args.enable_revelation_leds).start()
-        else:
-            DgtHw(dgtserial, dgttranslate, args.enable_revelation_leds).start()
-        # Start the show
-        dgtserial.startup_serial_hardware()
+        DgtHw(dgtserial, dgttranslate, args.enable_revelation_leds).start()
 
     # Save to PGN
     PgnDisplay(

@@ -75,12 +75,14 @@ class DgtSerial(object):
         self.bt_mac_list = []
         self.bt_name_list = []
         self.bt_name = ''
+        self.wait_counter = 0
 
     def startup_serial_hardware(self):
         self.setup_serial_port()
-        if not self.is_pi:  # can this "if" be removed for example for a RevII board?!?
-            self.startup_serial_clock()
-        self.startup_serial_board()
+        if self.serial:
+            if not self.is_pi:  # can this "if" be removed for example for a RevII board?!?
+                self.startup_serial_clock()
+            self.startup_serial_board()
 
     def write_board_command(self, message):
         mes = message[3] if message[0].value == DgtCmd.DGT_CLOCK_MESSAGE.value else message[0]
@@ -103,23 +105,24 @@ class DgtSerial(object):
                 return False
 
         while True:
-            if not self.serial:
-                logging.warning('loop serial error')
-                self.startup_serial_hardware()
-            try:
-                self.serial.write(bytearray(array))
+            if self.serial:
+                try:
+                    self.serial.write(bytearray(array))
+                    break
+                except ValueError:
+                    logging.error('invalid bytes sent {0}'.format(message))
+                    return False
+                except pyserial.SerialException as e:
+                    logging.error(e)
+                    self.serial.close()
+                    self.serial = None
+                except IOError as e:
+                    logging.error(e)
+                    self.serial.close()
+                    self.serial = None
+            if mes == DgtCmd.DGT_RETURN_SERIALNR:
                 break
-            except ValueError:
-                logging.error('invalid bytes sent {0}'.format(message))
-                return False
-            except pyserial.SerialException as e:
-                logging.error(e)
-                self.serial.close()
-                self.serial = None
-            except IOError as e:
-                logging.error(e)
-                self.serial.close()
-                self.serial = None
+            time.sleep(0.1)
 
         if message[0] == DgtCmd.DGT_CLOCK_MESSAGE:
             self.last_clock_command = message
@@ -288,15 +291,21 @@ class DgtSerial(object):
         return message_id
 
     def process_incoming_board_forever(self):
+        counter = 0
         logging.info('incoming_board ready')
         while True:
             try:
                 c = None
                 if self.serial:
                     c = self.serial.read(1)
+                else:
+                    self.startup_serial_hardware()
                 if c:
                     self.read_board_message(head=c)
                 else:
+                    counter = (counter + 1) % 8
+                    if counter == 0:  # issue 150 - force to write something to the board => check for alive connection!
+                        self.write_board_command([DgtCmd.DGT_RETURN_SERIALNR])  # the code doesnt really matter ;-)
                     time.sleep(0.1)
             except pyserial.SerialException:
                 pass
@@ -480,8 +489,7 @@ class DgtSerial(object):
         if self.rt.is_running():
             self.rt.stop()
         with self.lock:
-            wait_counter = 0
-            while not self.serial:
+            if not self.serial:
                 if self.given_device:
                     self.check_serial(self.given_device)
                 else:
@@ -490,19 +498,17 @@ class DgtSerial(object):
                             dev = os.path.join('/dev', file)
                             if self.check_serial(dev):
                                 self.device = dev
-                                break
-                    if self.serial:
-                        break
+                                logging.debug('DGT board connected to %s', self.device)
+                                return
                     if self.check_bluetooth():
                         self.device = '/dev/rfcomm123'
-                        break
+                        logging.debug('DGT board connected to %s', self.device)
+                        return
 
-                s = 'Board' + self.waitchars[wait_counter]
+                s = 'Board' + self.waitchars[self.wait_counter]
                 text = Dgt.DISPLAY_TEXT(l='no e-' + s, m='no' + s, s=s, wait=True, beep=False, maxtime=0)
                 DisplayMsg.show(Message.NO_EBOARD_ERROR(text=text, is_pi=self.is_pi))
-                wait_counter = (wait_counter + 1) % len(self.waitchars)
-                time.sleep(0.1)
-            logging.debug('DGT board connected to %s', self.device)
+                self.wait_counter = (self.wait_counter + 1) % len(self.waitchars)
 
     def enable_pi(self):
         self.is_pi = True
