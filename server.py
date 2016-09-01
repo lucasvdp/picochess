@@ -15,23 +15,20 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import datetime
 import threading
+from multiprocessing.pool import ThreadPool
 
-from flask import Flask
+import chess
+import chess.pgn as pgn
 import tornado.web
 import tornado.wsgi
-from tornado.websocket import WebSocketHandler
 from tornado.ioloop import IOLoop
-from multiprocessing.pool import ThreadPool
-from utilities import *
-import queue
-from web.picoweb import picoweb as pw
-import chess.pgn as pgn
-import chess
-import json
-import datetime
+from tornado.websocket import WebSocketHandler
 
-import copy
+from utilities import *
+from web.picoweb import picoweb as pw
+
 
 _workers = ThreadPool(5)
 
@@ -40,76 +37,25 @@ _workers = ThreadPool(5)
 client_ips = []
 
 
-def create_game_header(cls, game):
-    game.headers["Result"] = "*"
-    game.headers["White"] = "None"
-    game.headers["Black"] = "None"
-    game.headers["Event"] = "PicoChess game"
-    game.headers["Date"] = datetime.datetime.now().date().strftime('%Y-%m-%d')
-    game.headers["Round"] = "?"
-
-    game.headers["Site"] = "picochess.org"
-    user_name = "User"
-    engine_name = "Picochess"
-    if 'system_info' in cls.shared:
-        if "location" in cls.shared['system_info']:
-            game.headers["Site"] = cls.shared['system_info']['location']
-        if "user_name" in cls.shared['system_info']:
-            user_name = cls.shared['system_info']['user_name']
-        if "engine_name" in cls.shared['system_info']:
-            engine_name = cls.shared['system_info']['engine_name']
-
-    if 'game_info' in cls.shared:
-        if "play_mode" in cls.shared["game_info"]:
-            if "level" in cls.shared["game_info"]:
-                engine_name += " /{0}\\".format(cls.shared["game_info"]["level"])
-            game.headers["Black"] = engine_name if cls.shared["game_info"]["play_mode"] == PlayMode.USER_WHITE else user_name
-            game.headers["White"] = engine_name if cls.shared["game_info"]["play_mode"] == PlayMode.USER_BLACK else user_name
-
-            comp_color = "Black" if cls.shared["game_info"]["play_mode"] == PlayMode.USER_WHITE else "White"
-            user_color = "Black" if cls.shared["game_info"]["play_mode"] == PlayMode.USER_BLACK else "White"
-            game.headers[comp_color + "Elo"] = "2900"
-            game.headers[user_color + "Elo"] = "-"
-
-
-def update_headers(cls):
-    g = pgn.Game()
-    create_game_header(cls, g)
-    exp = pgn.StringExporter(headers=True, comments=False, variations=False)
-    pgn_str = g.accept(exp)
-    EventHandler.write_to_clients({'event': 'header', 'header': pgn_str})
-
-
 class ChannelHandler(tornado.web.RequestHandler):
     def initialize(self, shared=None):
         self.shared = shared
 
     def real_ip(self):
-        x_real_ip = self.request.headers.get("X-Real-IP")
+        x_real_ip = self.request.headers.get('X-Real-IP')
         real_ip = self.request.remote_ip if not x_real_ip else x_real_ip
         return real_ip
 
     def post(self):
-        action = self.get_argument("action")
+        action = self.get_argument('action')
 
         if action == 'broadcast':
-            fen = self.get_argument("fen")
-
-            move_stack = self.get_argument("moveStack")
-            move_stack = json.loads(move_stack)
-            game = pgn.Game()
-
-            create_game_header(self, game)
-
-            tmp = game
-            for move in move_stack:
-                tmp = tmp.add_variation(tmp.board().parse_san(move))
-            exporter = pgn.StringExporter(headers=True, comments=False, variations=False)
-            pgn_str = game.accept(exporter)
-            r = {'type': 'broadcast', 'msg': 'Received position from Spectators!', 'pgn': pgn_str, 'fen': fen}
+            fen = self.get_argument('fen')
+            pgn_str = self.get_argument('pgn')
+            r = {'event': 'broadcast', 'msg': 'Received position from Spectators!', 'pgn': pgn_str, 'fen': fen}
             EventHandler.write_to_clients(r)
         elif action == 'move':
-            WebServer.fire(Event.REMOTE_MOVE(move=self.get_argument("source") + self.get_argument("target"), fen=self.get_argument("fen")))
+            WebServer.fire(Event.REMOTE_MOVE(move=self.get_argument('source') + self.get_argument('target'), fen=self.get_argument('fen')))
 
 
 class EventHandler(WebSocketHandler):
@@ -119,14 +65,13 @@ class EventHandler(WebSocketHandler):
         self.shared = shared
 
     def real_ip(self):
-        x_real_ip = self.request.headers.get("X-Real-IP")
+        x_real_ip = self.request.headers.get('X-Real-IP')
         real_ip = self.request.remote_ip if not x_real_ip else x_real_ip
         return real_ip
 
     def open(self):
         EventHandler.clients.add(self)
         client_ips.append(self.real_ip())
-        update_headers(self)
 
     def on_close(self):
         EventHandler.clients.remove(self)
@@ -143,9 +88,10 @@ class DGTHandler(tornado.web.RequestHandler):
         self.shared = shared
 
     def get(self, *args, **kwargs):
-        action = self.get_argument("action")
-        if action == "get_last_move":
-            self.write(self.shared['last_dgt_move_msg'])
+        action = self.get_argument('action')
+        if action == 'get_last_move':
+            if 'last_dgt_move_msg' in self.shared:
+                self.write(self.shared['last_dgt_move_msg'])
 
 
 class InfoHandler(tornado.web.RequestHandler):
@@ -153,22 +99,21 @@ class InfoHandler(tornado.web.RequestHandler):
         self.shared = shared
 
     def get(self, *args, **kwargs):
-        action = self.get_argument("action")
-        if action == "get_system_info":
+        action = self.get_argument('action')
+        if action == 'get_system_info':
             if 'system_info' in self.shared:
                 self.write(self.shared['system_info'])
+        if action == 'get_headers':
+            if 'headers' in self.shared:
+                self.write(self.shared['headers'])
 
 
-class PGNHandler(tornado.web.RequestHandler):
+class ChessBoardHandler(tornado.web.RequestHandler):
     def initialize(self, shared=None):
         self.shared = shared
 
-    def get(self, *args, **kwargs):
-        action = self.get_argument("action")
-        if action == "get_pgn_file":
-            self.set_header('Content-Type', 'text/pgn')
-            self.set_header('Content-Disposition', 'attachment; filename=game.pgn')
-            self.write(self.shared['last_dgt_move_msg']['pgn'])
+    def get(self):
+        self.render('web/picoweb/templates/board2.html')
 
 
 class WebServer(Observable, threading.Thread):
@@ -180,9 +125,9 @@ class WebServer(Observable, threading.Thread):
         wsgi_app = tornado.wsgi.WSGIContainer(pw)
 
         application = tornado.web.Application([
+            (r'/', ChessBoardHandler, dict(shared=shared)),
             (r'/event', EventHandler, dict(shared=shared)),
             (r'/dgt', DGTHandler, dict(shared=shared)),
-            (r'/pgn', PGNHandler, dict(shared=shared)),
             (r'/info', InfoHandler, dict(shared=shared)),
 
             (r'/channel', ChannelHandler, dict(shared=shared)),
@@ -219,75 +164,112 @@ class WebDisplay(DisplayMsg, threading.Thread):
             self.shared['system_info'] = {}
 
     def task(self, message):
-        def transfer(g):
-            msg_game = copy.deepcopy(g)
+        def oldstyle_fen(g):
+            builder = []
+            builder.append(g.board_fen())
+            builder.append('w' if g.turn == chess.WHITE else 'b')
+            builder.append(g.castling_xfen())
+            builder.append(chess.SQUARE_NAMES[g.ep_square] if g.ep_square else '-')
+            builder.append(str(g.halfmove_clock))
+            builder.append(str(g.fullmove_number))
+            return ' '.join(builder)
+
+        def create_game_header(pgn_game):
+            pgn_game.headers['Result'] = '*'
+            pgn_game.headers['White'] = 'None'
+            pgn_game.headers['Black'] = 'None'
+            pgn_game.headers['Event'] = 'PicoChess game'
+            pgn_game.headers['Date'] = datetime.datetime.now().date().strftime('%Y-%m-%d')
+            pgn_game.headers['Round'] = '?'
+            pgn_game.headers['Site'] = 'picochess.org'
+
+            user_name = 'User'
+            engine_name = 'Picochess'
+            if 'system_info' in self.shared:
+                if 'location' in self.shared['system_info']:
+                    pgn_game.headers['Site'] = self.shared['system_info']['location']
+                if 'user_name' in self.shared['system_info']:
+                    user_name = self.shared['system_info']['user_name']
+                if 'engine_name' in self.shared['system_info']:
+                    engine_name = self.shared['system_info']['engine_name']
+
+            if 'game_info' in self.shared:
+                if 'play_mode' in self.shared['game_info']:
+                    if 'level_text' in self.shared['game_info']:
+                        engine_name += ' /{0}\\'.format(self.shared['game_info']['level_text'].m)
+                    pgn_game.headers['Black'] = \
+                        engine_name if self.shared['game_info']['play_mode'] == PlayMode.USER_WHITE else user_name
+                    pgn_game.headers['White'] = \
+                        engine_name if self.shared['game_info']['play_mode'] == PlayMode.USER_BLACK else user_name
+
+                    comp_color = 'Black' if self.shared['game_info']['play_mode'] == PlayMode.USER_WHITE else 'White'
+                    user_color = 'Black' if self.shared['game_info']['play_mode'] == PlayMode.USER_BLACK else 'White'
+                    pgn_game.headers[comp_color + 'Elo'] = '2900'
+                    pgn_game.headers[user_color + 'Elo'] = '-'
+                    
+        def update_headers():
             pgn_game = pgn.Game()
-            moves = []
-            # go back, to see if the first fen is not standard fen
-            while msg_game.move_stack:
-                moves.insert(0, msg_game.pop())
-            if msg_game.fen() != chess.STARTING_FEN:
-                pgn_game.setup(msg_game.fen())
+            create_game_header(pgn_game)
+            self.shared['headers'] = pgn_game.headers
+            EventHandler.write_to_clients({'event': 'header', 'headers': pgn_game.headers})
 
-            create_game_header(self, pgn_game)
-
-            node = pgn_game
-            for move in moves:
-                node = node.add_variation(move)
-            # transfer game to a pgn string
-            exporter = pgn.StringExporter(headers=True, comments=False, variations=False)
-            return pgn_game.accept(exporter)
-
+        def transfer(g):
+            pgn_game = pgn.Game().from_board(g)
+            create_game_header(pgn_game)
+            return pgn_game.accept(pgn.StringExporter(headers=True, comments=False, variations=False))
+        
         for case in switch(message):
             if case(MessageApi.BOOK_MOVE):
                 EventHandler.write_to_clients({'event': 'Message', 'msg': 'Book move'})
                 break
             if case(MessageApi.START_NEW_GAME):
+                pgn_str = transfer(message.game)
                 fen = message.game.fen()
-                r = {'fen': fen}
+                r = {'pgn': pgn_str, 'fen': fen}
                 self.shared['last_dgt_move_msg'] = r
-                EventHandler.write_to_clients(r)
+                p = message.game.chess960_pos()
+                if p:
+                    code_text = '' if p == 518 else ' - chess960 code {}'.format(p)
+                else:
+                    code_text = ' with setup'
                 EventHandler.write_to_clients({'event': 'NewGame', 'fen': fen})
-                EventHandler.write_to_clients({'event': 'Message', 'msg': 'New game'})
-                update_headers(self)
+                EventHandler.write_to_clients({'event': 'Message', 'msg': 'New game' + code_text})
+                update_headers()
                 break
             if case(MessageApi.SEARCH_STARTED):
                 EventHandler.write_to_clients({'event': 'Message', 'msg': 'Thinking..'})
                 break
-            if case(MessageApi.UCI_OPTION_LIST):
-                self.shared['uci_options'] = message.options
-                break
             if case(MessageApi.SYSTEM_INFO):
-                r = {'fen': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR'}
-                self.shared['last_dgt_move_msg'] = r
-                EventHandler.write_to_clients(r)
                 self.shared['system_info'] = message.info
                 self.shared['system_info']['old_engine'] = self.shared['system_info']['engine_name']
-                update_headers(self)
+                update_headers()
                 break
             if case(MessageApi.ENGINE_READY):
+                self.create_system_info()
                 self.shared['system_info']['engine_name'] = message.engine_name
-                if not message.has_levels and "level" in self.shared["game_info"]:
-                    del self.shared['game_info']['level']
-                update_headers(self)
+                if not message.has_levels and 'level_text' in self.shared['game_info']:
+                    del self.shared['game_info']['level_text']
+                update_headers()
                 break
             if case(MessageApi.STARTUP_INFO):
                 self.shared['game_info'] = message.info
+                if message.info['level_text'] is None:
+                    del self.shared['game_info']['level_text']
                 break
-            if case(MessageApi.OPENING_BOOK):  # Process opening book
+            if case(MessageApi.OPENING_BOOK):
                 self.create_game_info()
-                self.shared['game_info']['book_text'] = message.book_text
+                self.shared['game_info']['book_index'] = message.book_text  # @todo fixit
                 break
-            if case(MessageApi.INTERACTION_MODE):  # Process interaction mode
+            if case(MessageApi.INTERACTION_MODE):
                 self.create_game_info()
-                self.shared['game_info']['mode'] = message.mode
-                if self.shared['game_info']['mode'] == Mode.REMOTE:
+                self.shared['game_info']['interaction_mode'] = message.mode
+                if self.shared['game_info']['interaction_mode'] == Mode.REMOTE:
                     self.shared['system_info']['engine_name'] = 'Remote Player'
                 else:
                     self.shared['system_info']['engine_name'] = self.shared['system_info']['old_engine']
-                update_headers(self)
+                update_headers()
                 break
-            if case(MessageApi.PLAY_MODE):  # Process play mode
+            if case(MessageApi.PLAY_MODE):
                 self.create_game_info()
                 self.shared['game_info']['play_mode'] = message.play_mode
                 break
@@ -296,8 +278,9 @@ class WebDisplay(DisplayMsg, threading.Thread):
                 self.shared['game_info']['time_text'] = message.time_text
                 break
             if case(MessageApi.LEVEL):
-                self.shared['game_info']['level'] = message.level_text.m
-                update_headers(self)
+                self.create_game_info()
+                self.shared['game_info']['level_text'] = message.level_text
+                update_headers()
                 break
             if case(MessageApi.JACK_CONNECTED_ERROR):
                 EventHandler.write_to_clients({'event': 'Message', 'msg': 'Unplug the jack cable please!'})
@@ -313,30 +296,28 @@ class WebDisplay(DisplayMsg, threading.Thread):
                 break
             if case(MessageApi.COMPUTER_MOVE):
                 pgn_str = transfer(message.game)
-                fen = message.game.fen()
+                fen = oldstyle_fen(message.game)
                 mov = message.move.uci()
                 msg = 'Computer move: ' + str(message.move)
-                r = {'pgn': pgn_str, 'fen': fen, 'event': 'newFEN', 'move': mov, 'msg': msg, 'remote_play': False}
-
+                r = {'pgn': pgn_str, 'fen': fen, 'event': 'newFEN', 'move': mov, 'msg': msg, 'review_play': False}
                 self.shared['last_dgt_move_msg'] = r
                 EventHandler.write_to_clients(r)
                 break
             if case(MessageApi.USER_MOVE):
                 pgn_str = transfer(message.game)
-                fen = message.game.fen()
+                fen = oldstyle_fen(message.game)
                 msg = 'User move: ' + str(message.move)
                 mov = message.move.uci()
-                r = {'pgn': pgn_str, 'fen': fen, 'event': 'newFEN', 'move': mov, 'msg': msg, 'remote_play': False}
-
+                r = {'pgn': pgn_str, 'fen': fen, 'event': 'newFEN', 'move': mov, 'msg': msg, 'review_play': False}
                 self.shared['last_dgt_move_msg'] = r
                 EventHandler.write_to_clients(r)
                 break
             if case(MessageApi.REVIEW_MOVE):
                 pgn_str = transfer(message.game)
-                fen = message.game.fen()
-                mov = 'User move: ' + str(message.move)
-                r = {'pgn': pgn_str, 'fen': fen, 'event': 'newFEN', 'move': mov, 'remote_play': True}
-
+                fen = oldstyle_fen(message.game)
+                msg = 'Review move: ' + str(message.move)
+                mov = message.move.uci()
+                r = {'pgn': pgn_str, 'fen': fen, 'event': 'newFEN', 'move': mov, 'msg': msg, 'review_play': True}
                 self.shared['last_dgt_move_msg'] = r
                 EventHandler.write_to_clients(r)
                 break

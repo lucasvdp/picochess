@@ -33,7 +33,7 @@ except ImportError:
 
 
 # picochess version
-version = '072'
+version = '073'
 
 evt_queue = queue.Queue()
 serial_queue = queue.Queue()
@@ -105,7 +105,6 @@ class MessageApi():
     CLOCK_START = 'MSG_CLOCK_START'  # Say to run autonomous clock, contains time_control
     CLOCK_STOP = 'MSG_CLOCK_STOP'  # Stops the clock
     USER_MOVE = 'MSG_USER_MOVE'  # Player has done a move on board
-    UCI_OPTION_LIST = 'MSG_UCI_OPTION_LIST'  # Contains 'options', a dict of the current engine's UCI options
     GAME_ENDS = 'MSG_GAME_ENDS'  # The current game has ended, contains a 'result' (GameResult) and list of 'moves'
 
     SYSTEM_INFO = 'MSG_SYSTEM_INFO'  # Information about picochess such as version etc
@@ -667,7 +666,6 @@ class Message():
     CLOCK_START = ClassFactory(MessageApi.CLOCK_START, ['turn', 'time_control'])
     CLOCK_STOP = ClassFactory(MessageApi.CLOCK_STOP, [])
     USER_MOVE = ClassFactory(MessageApi.USER_MOVE, ['move', 'fen', 'turn', 'game'])
-    UCI_OPTION_LIST = ClassFactory(MessageApi.UCI_OPTION_LIST, ['options'])
     GAME_ENDS = ClassFactory(MessageApi.GAME_ENDS, ['result', 'play_mode', 'game'])
 
     SYSTEM_INFO = ClassFactory(MessageApi.SYSTEM_INFO, ['info'])
@@ -686,7 +684,7 @@ class Event():
     # User events
     FEN = ClassFactory(EventApi.FEN, ['fen'])
     LEVEL = ClassFactory(EventApi.LEVEL, ['options', 'level_text'])
-    NEW_GAME = ClassFactory(EventApi.NEW_GAME, [])
+    NEW_GAME = ClassFactory(EventApi.NEW_GAME, ['pos960'])
     DRAWRESIGN = ClassFactory(EventApi.DRAWRESIGN, ['result'])
     KEYBOARD_MOVE = ClassFactory(EventApi.KEYBOARD_MOVE, ['move', 'flip_board'])
     REMOTE_MOVE = ClassFactory(EventApi.REMOTE_MOVE, ['move', 'fen'])

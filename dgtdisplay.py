@@ -737,7 +737,8 @@ class DgtDisplay(Observable, DisplayMsg, threading.Thread):
                 # self.mode_index = Mode.NORMAL  # @todo
                 self.reset_menu_results()
                 self.engine_finished = False
-                text = self.dgttranslate.text('C10_newgame')
+                p = message.game.chess960_pos()
+                text = self.dgttranslate.text('C10_newgame') if p is None or p == 518 else self.dgttranslate.text('C10_ucigame', str(p))
                 text.wait = True  # in case of GAME_ENDS before, wait for "abort"
                 DisplayDgt.show(text)
                 if self.mode_result in (Mode.NORMAL, Mode.OBSERVE, Mode.REMOTE):
@@ -941,10 +942,6 @@ class DgtDisplay(Observable, DisplayMsg, threading.Thread):
                         self.fire(Event.LEVEL(options=level_dict[msg], level_text=text))
                     else:
                         logging.debug('engine doesnt support levels')
-                elif fen == 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR':
-                    logging.debug("Map-Fen: New game")
-                    self.show_setup_pieces_msg = False
-                    self.fire(Event.NEW_GAME())
                 elif fen in book_map:
                     book_index = book_map.index(fen)
                     try:
@@ -1031,6 +1028,13 @@ class DgtDisplay(Observable, DisplayMsg, threading.Thread):
                     if self.top_result is None:
                         logging.debug('Map-Fen: drawresign')
                         self.fire(Event.DRAWRESIGN(result=drawresign_map[self.drawresign_fen]))
+                elif '/pppppppp/8/8/8/8/PPPPPPPP/' in fen:  # check for the lines 2-6 cause could be a uci960 pos too
+                    bit_board = chess.Board(fen + ' w - - 0 1')
+                    pos960 = bit_board.chess960_pos(ignore_castling=True)
+                    if pos960 is not None:
+                        logging.debug("Map-Fen: New game")
+                        self.show_setup_pieces_msg = False
+                        self.fire(Event.NEW_GAME(pos960=pos960))
                 else:
                     if self.show_setup_pieces_msg:
                         DisplayDgt.show(self.dgttranslate.text('N00_setpieces'))

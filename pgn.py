@@ -36,7 +36,7 @@ class PgnDisplay(DisplayMsg, threading.Thread):
         self.old_engine = ''
         self.user_name = ''
         self.location = ''
-        self.level = None
+        self.level_text = None
         if email and net:  # check if email address is provided by picochess.ini and network traffic is allowed
             self.email = email
         else:
@@ -55,18 +55,8 @@ class PgnDisplay(DisplayMsg, threading.Thread):
 
     def save_and_email_pgn(self, message):
         logging.debug('Saving game to [' + self.file_name + ']')
-        pgn_game = chess.pgn.Game()
-        msg_game = message.game.copy()
-        moves = []
-        # go back, to see if the first fen is not standard fen
-        while msg_game.move_stack:
-            moves.insert(0, msg_game.pop())
-        if msg_game.fen() != chess.STARTING_FEN:
-            pgn_game.setup(msg_game.fen())
+        pgn_game = chess.pgn.Game().from_board(message.game.copy())
 
-        node = pgn_game
-        for move in moves:
-            node = node.add_variation(move)
         # Headers
         pgn_game.headers['Event'] = 'PicoChess game'
         pgn_game.headers['Site'] = self.location
@@ -78,13 +68,11 @@ class PgnDisplay(DisplayMsg, threading.Thread):
             pgn_game.headers['Result'] = '1-0' if message.result == GameResult.WIN_WHITE else '0-1'
         elif message.result == GameResult.OUT_OF_TIME:
             pgn_game.headers['Result'] = '0-1' if message.game.turn == chess.WHITE else '1-0'
-        else:
-            pgn_game.headers['Result'] = message.game.result()
 
-        if self.level is None:
+        if self.level_text is None:
             engine_level = ''
         else:
-            engine_level = " ({0})".format(self.level)
+            engine_level = " ({0})".format(self.level_text.m)
 
         if message.play_mode == PlayMode.USER_WHITE:
             pgn_game.headers['White'] = self.user_name
@@ -144,7 +132,7 @@ class PgnDisplay(DisplayMsg, threading.Thread):
                     logging.error('SMTP Mail delivery: ' + str(e))
             # smtp based system end
             if self.mailgun_key:  # check if we have mailgun-key available to send the pgn successful
-                out = requests.post('https://api.mailgun.net/v2/picochess.org/messages',
+                out = requests.post('https://api.mailgun.net/v3/picochess.org/messages',
                                     auth=('api', self.mailgun_key),
                                     data={'from': 'Your PicoChess computer <no-reply@picochess.org>',
                                           'to': self.email,
@@ -165,8 +153,11 @@ class PgnDisplay(DisplayMsg, threading.Thread):
                         self.user_name = message.info['user_name']
                         self.location = message.info['location']
                         break
+                    if case(MessageApi.STARTUP_INFO):
+                        self.level_text = message.info['level_text']
+                        break
                     if case(MessageApi.LEVEL):
-                        self.level = message.level_text.m
+                        self.level_text = message.level_text
                         break
                     if case(MessageApi.INTERACTION_MODE):
                         if message.mode == Mode.REMOTE:
@@ -178,7 +169,7 @@ class PgnDisplay(DisplayMsg, threading.Thread):
                     if case(MessageApi.ENGINE_READY):
                         self.engine_name = message.engine_name
                         if not message.has_levels:
-                            self.level = None
+                            self.level_text = None
                         break
                     if case(MessageApi.GAME_ENDS):
                         if message.game.move_stack:
