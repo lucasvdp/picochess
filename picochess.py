@@ -509,22 +509,20 @@ def main():
     if args.web_server_port:
         WebServer(args.web_server_port).start()
 
-    dgtserial = DgtSerial(args.dgt_port)
-    if args.dgtpi:
-        dgtserial.enable_pi()
+    dgtserial = DgtSerial(args.dgt_port, args.enable_revelation_leds, args.dgtpi)
 
     if args.console:
         # Enable keyboard input and terminal display
         logging.debug('starting picochess in virtual mode')
         KeyboardInput(args.dgtpi).start()
         TerminalDisplay().start()
-        DgtVr(dgtserial, dgttranslate, args.enable_revelation_leds).start()
+        DgtVr(dgtserial, dgttranslate).start()
     else:
         # Connect to DGT board
         logging.debug('starting picochess in board mode')
         if args.dgtpi:
-            DgtPi(dgtserial, dgttranslate, args.enable_revelation_leds).start()
-        DgtHw(dgtserial, dgttranslate, args.enable_revelation_leds).start()
+            DgtPi(dgtserial, dgttranslate).start()
+        DgtHw(dgtserial, dgttranslate).start()
     # Save to PGN
     PgnDisplay(
         args.pgn_file, net=args.enable_internet, email=args.email, mailgun_key=args.mailgun_key,

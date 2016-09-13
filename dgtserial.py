@@ -53,15 +53,17 @@ piece_to_char = {
 
 
 class DgtSerial(object):
-    def __init__(self, device):
+    def __init__(self, device, enable_revelation_leds, is_pi):
         super(DgtSerial, self).__init__()
         self.given_device = device
         self.device = device
+        self.enable_revelation_leds = enable_revelation_leds
+        self.is_pi = is_pi
+
         self.serial = None
         self.waitchars = ['/', '-', '\\', '|']
         self.lock = Lock()  # inside setup_serial()
         self.incoming_board_thread = None
-        self.is_pi = False
         self.lever_pos = None
         # the next three are only used for "not dgtpi" mode
         self.clock_lock = False  # serial connected clock is locked
@@ -146,6 +148,7 @@ class DgtSerial(object):
                 else:
                     if 'REVII' in self.bt_name:
                         text_l, text_m, text_s = 'RevII ' + self.bt_name[-5:], 'Rev' + self.bt_name[-5:], self.bt_name[-6:]
+                        self.enable_revelation_leds = True
                     elif 'DGT_BT' in self.bt_name:
                         text_l, text_m, text_s = 'DGTBT ' + self.bt_name[-5:], 'BT ' + self.bt_name[-5:], self.bt_name[-5:]
                     else:
@@ -510,9 +513,6 @@ class DgtSerial(object):
                 text = Dgt.DISPLAY_TEXT(l='no e-' + s, m='no' + s, s=s, wait=True, beep=False, maxtime=0)
                 DisplayMsg.show(Message.NO_EBOARD_ERROR(text=text, is_pi=self.is_pi))
                 self.wait_counter = (self.wait_counter + 1) % len(self.waitchars)
-
-    def enable_pi(self):
-        self.is_pi = True
 
     def run(self):
         self.incoming_board_thread = Timer(0, self.process_incoming_board_forever)
