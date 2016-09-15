@@ -553,6 +553,7 @@ class DgtDisplay(Observable, DisplayMsg, threading.Thread):
             exit_menu = True
             if self.system_index == Settings.VERSION:
                 text = self.dgttranslate.text('B10_picochess')
+                text.wait = False
             elif self.system_index == Settings.IPADR:
                 if self.ip:
                     msg = ' '.join(self.ip.split('.')[2:])
@@ -860,13 +861,13 @@ class DgtDisplay(Observable, DisplayMsg, threading.Thread):
                         if val == tc:
                             self.time_control_blitz_index = index
                             break
-                        index +=1
+                        index += 1
                 elif tc.mode == TimeMode.FISCHER:
                     for val in self.time_control_fisch_map.values():
                         if val == tc:
                             self.time_control_fisch_index = index
                             break
-                        index +=1
+                        index += 1
                 break
             if case(MessageApi.SEARCH_STARTED):
                 logging.debug('Search started')
@@ -992,7 +993,7 @@ class DgtDisplay(Observable, DisplayMsg, threading.Thread):
                     text = self.dgttranslate.text(mode_map[fen].value)
                     text.beep = map_bl  # BeepLevel is Map not Button
                     text.maxtime = 1  # wait 1sec not forever
-                    self.fire(Event.SET_INTERACTION_MODE(mode=mode_map[fen], mode_text=text,ok_text=False))
+                    self.fire(Event.SET_INTERACTION_MODE(mode=mode_map[fen], mode_text=text, ok_text=False))
                     self.reset_menu_results()
                 elif fen in self.time_control_fixed_map:
                     logging.debug('Map-Fen: Time control fixed')
@@ -1051,8 +1052,7 @@ class DgtDisplay(Observable, DisplayMsg, threading.Thread):
                         logging.debug('inside the menu. fen "{}" ignored'.format(fen))
                 break
             if case(MessageApi.DGT_CLOCK_VERSION):
-                DisplayDgt.show(Dgt.CLOCK_VERSION(main_version=message.main_version,
-                                                  sub_version=message.sub_version, attached=message.attached))
+                DisplayDgt.show(Dgt.CLOCK_VERSION(main=message.main, sub=message.sub, attached=message.attached))
                 break
             if case(MessageApi.DGT_CLOCK_TIME):
                 DisplayDgt.show(Dgt.CLOCK_TIME(time_left=message.time_left, time_right=message.time_right))

@@ -39,24 +39,21 @@ class DgtTranslate(object):
         self.beep = beep
 
     def set_language(self, language):
-        self.language  = language
+        self.language = language
 
     def move(self, text):
-        def replace_all(text, dict):
-            for i, j in dict.items():
-                text = text.replace(i, j)
-            return text
-
-        dict = {}
+        directory = {}
         if self.language == 'de':
-            dict = {'R': 'T', 'N': 'S', 'B': 'L', 'Q': 'D'}
+            directory = {'R': 'T', 'N': 'S', 'B': 'L', 'Q': 'D'}
         if self.language == 'nl':
-            dict = {'R': 'T', 'N': 'P', 'B': 'L', 'Q': 'D'}
+            directory = {'R': 'T', 'N': 'P', 'B': 'L', 'Q': 'D'}
         if self.language == 'fr':
-            dict = {'R': 'T', 'N': 'C', 'B': 'F', 'Q': 'D', 'K': 'R'}
+            directory = {'R': 'T', 'N': 'C', 'B': 'F', 'Q': 'D', 'K': 'R'}
         if self.language == 'es':
-            dict = {'R': 'T', 'N': 'C', 'B': 'A', 'Q': 'D', 'K': 'R'}
-        return replace_all(text, dict)
+            directory = {'R': 'T', 'N': 'C', 'B': 'A', 'Q': 'D', 'K': 'R'}
+        for i, j in directory.items():
+            text = text.replace(i, j)
+        return text
 
     def text(self, str_code, msg=''):
         entxt = detxt = nltxt = frtxt = estxt = None  # error case
@@ -128,6 +125,7 @@ class DgtTranslate(object):
             frtxt = Dgt.DISPLAY_TEXT(l='uci960 oui ', m='960 oui ', s='960oui')
             estxt = Dgt.DISPLAY_TEXT(l='uci960 si  ', m='960 si  ', s='960 si')
         if text_id == 'picochess':
+            wait = True
             entxt = Dgt.DISPLAY_TEXT(l='picoChs ' + version, m='pico ' + version, s='pic ' + version)
             detxt = entxt
             nltxt = entxt
@@ -586,6 +584,13 @@ class DgtTranslate(object):
             estxt = Dgt.DISPLAY_TEXT(l='Partid   ' + msg, m='Partid' + msg, s='part' + msg)
         if text_id == 'tc_fisch':
             entxt = Dgt.DISPLAY_TEXT(l='Fischr' + msg, m='Fsh' + msg, s='f' + msg)
+            detxt = entxt
+            nltxt = entxt
+            frtxt = entxt
+            estxt = entxt
+        if text_id == 'noboard':
+            wait = True
+            entxt = Dgt.DISPLAY_TEXT(l='no e-' + msg, m='no' + msg, s=msg)
             detxt = entxt
             nltxt = entxt
             frtxt = entxt

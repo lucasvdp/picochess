@@ -16,8 +16,6 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 from utilities import *
-import time
-import chess
 from threading import Timer, Thread, Lock
 
 
@@ -127,10 +125,9 @@ class DgtIface(DisplayDgt, Thread):
                 break
             if case(DgtApi.CLOCK_VERSION):
                 if not self.clock_found:
-                    self.show(Dgt.DISPLAY_TEXT(l='picoChs ' + version, m='pico ' + version, s='pic' + version,
-                                               wait=True, beep=True, maxtime=2))
+                    self.show(self.dgttranslate.text('Y20_picochess'))
                 self.clock_found = True
-                if message.main_version == 2:
+                if message.main == 2:
                     self.enable_dgt_3000 = True
                 break
             if case(DgtApi.CLOCK_TIME):
