@@ -8,7 +8,7 @@ This is the easiest installation method, supported on the `Raspberry Pi <http://
 Many other ARM boards can run picochess (like the powerful `Odroid-XU4 <http://www.hardkernel.com/main/products/prdt_info.php?g_code=G143452239825>`_),
 but you will need to do a :ref:`manual-install-label`.
 
-You will have to download and install the latest PicoChess image file from the `PicoChess downloads <http://dl.picochess.org>`_ and write it
+You will have to download and install the latest PicoChess image file from the `PicoChess downloads <http://picochess.com/picochess-images>`_ and write it
 to an SD card or to a micro SD card.
 
 You will need to unzip the image with `7zip <http://www.7-zip.org/>`_ and write it to a suitable SD card
@@ -106,12 +106,11 @@ Manual installation
 
   * `git <http://git-scm.com/>`_ (``sudo apt-get install git``, git executable has to be in the system PATH)
 
-  * A UCI chess engine; `Stockfish <http://stockfishchess.org/>`_ is probably
-    the best choice!
-
   * zeroconf (``sudo apt-get install avahi-daemon avahi-discover libnss-mdns``, included on Mac OS X)
 
-  * espeak and festival (``sudo apt-get install espeak festival``) to enable speech
+  * espeak and festival (``sudo apt-get install espeak festival``) to enable speech for versions < 0.79
+
+  * vorbis-tools (``sudo apt-get install vorbis-tools``) to enable speech for versions >= 0.79
 
 2. **Get a copy of the source code**
 
@@ -237,14 +236,7 @@ For example, to turn OFF the LED's on the Revelation II chessbot, this line will
 
 enable-revelation-leds = false
 
-UCI engine options can be set in the picochess.uci configuration file which you will find in the /opt/picochess/engines/<your_plattform> folder. To set the option, use the uci-option flag. For example, when using jromang's modified
-`Stockfish Human Player engine <https://github.com/jromang/Stockfish/tree/human_player>`_, the line
-
-Beginner Mode = true
-
-will dumb Stockfish down enough for play against children and total beginners to give
-them a chance of beating the machine. If you are using our image files, you will probably find
-the stockfish_human engine already waiting for your kids in the /opt/picochess/engines folder.
+UCI engine options can be set in the engines.uci configuration file which you will find in the /opt/picochess/engines/<your_plattform> folder. To set the option, use the uci-option flag.
 
 An example .ini file can be found at /opt/picochess/picochess.ini.example.
 Uncomment the appropriate options and rename the file to picochess.ini.

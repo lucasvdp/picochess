@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2016 Jean-Francois Romang (jromang@posteo.de)
+# Copyright (C) 2013-2017 Jean-Francois Romang (jromang@posteo.de)
 #                         Shivkumar Shivaji ()
 #                         Jürgen Précour (LocutusOfPenguin@posteo.de)
 #
@@ -28,15 +28,13 @@ from threading import Timer
 
 import configparser
 
-
 try:
     import enum
 except ImportError:
     import enum34 as enum
 
-
 # picochess version
-version = '075'
+version = '082'
 
 evt_queue = queue.Queue()
 serial_queue = queue.Queue()
@@ -56,7 +54,7 @@ class AutoNumber(enum.Enum):
 class EventApi():
     # User events
     FEN = 'EVT_FEN'  # User has moved one or more pieces, and we have a new fen position
-    LEVEL = 'EVT_LEVEL'  # User sets engine level (from 1 to 20)
+    LEVEL = 'EVT_LEVEL'  # User sets engine level
     NEW_GAME = 'EVT_NEW_GAME'  # User starts a new game
     DRAWRESIGN = 'EVT_DRAWRESIGN'  # User declares a resignation or draw
     KEYBOARD_MOVE = 'EVT_KEYBOARD_MOVE'  # Keyboard sends a move (to be transfered to a fen)
@@ -71,13 +69,17 @@ class EventApi():
     SHUTDOWN = 'EVT_SHUTDOWN'  # User wants to shutdown the machine
     REBOOT = 'EVT_REBOOT'  # User wants to reboot the machine
     ALTERNATIVE_MOVE = 'EVT_ALTERNATIVE_MOVE'  # User wants engine to recalculate the position
-    # dgt events
-    DGT_BUTTON = 'EVT_DGT_BUTTON'  # User pressed a button at the dgt clock
-    DGT_FEN = 'EVT_DGT_FEN'  # DGT board sends a fen
+    EMAIL_LOG = 'EVT_EMAIL_LOG'  # User want to send the log file by eMail
+    SET_VOICE = 'EVT_SET_VOICE'  # User sets a new voice
+    # Keyboard events
+    KEYBOARD_BUTTON = 'EVT_KEYBOARD_BUTTON'  # User pressed a button at the virtual clock
+    KEYBOARD_FEN = 'EVT_KEYBOARD_FEN'  # Virtual board sends a fen
     # Engine events
     BEST_MOVE = 'EVT_BEST_MOVE'  # Engine has found a move
     NEW_PV = 'EVT_NEW_PV'  # Engine sends a new principal variation
     NEW_SCORE = 'EVT_NEW_SCORE'  # Engine sends a new score
+    NEW_DEPTH = 'EVT_NEW_DEPTH'  # Engine sends a new depth
+    # Timecontrol events
     OUT_OF_TIME = 'EVT_OUT_OF_TIME'  # Clock flag fallen
 
 
@@ -90,21 +92,27 @@ class MessageApi():
     ENGINE_READY = 'MSG_ENGINE_READY'
     ENGINE_STARTUP = 'MSG_ENGINE_STARTUP'  # first time a new engine is ready
     ENGINE_FAIL = 'MSG_ENGINE_FAIL'  # Engine startup fails
-    LEVEL = 'MSG_LEVEL'  # User sets engine level (from 0 to 20).
+    LEVEL = 'MSG_LEVEL'  # User sets engine level
     TIME_CONTROL = 'MSG_TIME_CONTROL'  # New Timecontrol
     OPENING_BOOK = 'MSG_OPENING_BOOK'  # User chooses an opening book
+
     DGT_BUTTON = 'MSG_DGT_BUTTON'  # Clock button pressed
     DGT_FEN = 'MSG_DGT_FEN'  # DGT Board sends a fen
     DGT_CLOCK_VERSION = 'MSG_DGT_CLOCK_VERSION'  # DGT Board sends the clock version
     DGT_CLOCK_TIME = 'MSG_DGT_CLOCK_TIME'  # DGT Clock time message
+    DGT_SERIAL_NR = 'MSG_DGT_SERIAL_NR'  # DGT Clock serial_nr (used for watchdog only)
+    DGT_JACK_CONNECTED_ERROR = 'MSG_DGT_JACK_CONNECTED_ERROR'  # User connected fully|partly the clock via jack
+    DGT_NO_CLOCK_ERROR = 'MSG_DGT_NO_CLOCK_ERROR'  # User hasnt connected a clock
+    DGT_NO_EBOARD_ERROR = 'MSG_DGT_NO_EBOARD_ERROR'  # User hasnt connected an E-Board
+    DGT_EBOARD_VERSION = 'MSG_DGT_EBOARD_VERSION'  # Startup Message after a successful connection to an E-Board
 
     INTERACTION_MODE = 'MSG_INTERACTON_MODE'  # Interaction mode
     PLAY_MODE = 'MSG_PLAY_MODE'  # Play mode
     START_NEW_GAME = 'MSG_START_NEW_GAME'  # User starts a new game
-    COMPUTER_MOVE_DONE_ON_BOARD = 'MSG_COMPUTER_MOVE_DONE_ON_BOARD'  # User has done the compute move on board
+    COMPUTER_MOVE_DONE_ON_BOARD = 'MSG_COMPUTER_MOVE_DONE_ON_BOARD'  # User has done the computer move on board
     SEARCH_STARTED = 'MSG_SEARCH_STARTED'  # Engine has started to search
     SEARCH_STOPPED = 'MSG_SEARCH_STOPPED'  # Engine has stopped the search
-    USER_TAKE_BACK = 'MSG_USER_TACK_BACK'  # User takes back his move while engine is searching
+    TAKE_BACK = 'MSG_TACK_BACK'  # User takes back move(s)
     CLOCK_START = 'MSG_CLOCK_START'  # Say to run autonomous clock, contains time_control
     CLOCK_STOP = 'MSG_CLOCK_STOP'  # Stops the clock
     USER_MOVE = 'MSG_USER_MOVE'  # Player has done a move on board
@@ -112,18 +120,18 @@ class MessageApi():
 
     SYSTEM_INFO = 'MSG_SYSTEM_INFO'  # Information about picochess such as version etc
     STARTUP_INFO = 'MSG_STARTUP_INFO'  # Information about the startup options
-    NEW_SCORE = 'MSG_NEW_SCORE'  # Score
+    NEW_SCORE = 'MSG_NEW_SCORE'  # Shows a new score
+    NEW_DEPTH = 'MSG_NEW_DEPTH'  # Shows a new depth
     ALTERNATIVE_MOVE = 'MSG_ALTERNATIVE_MOVE'  # User wants another move to be calculated
-    JACK_CONNECTED_ERROR = 'MSG_JACK_CONNECTED_ERROR'  # User connected fully|partly the clock via jack => remove it
-    NO_CLOCK_ERROR = 'MSG_NO_CLOCK_ERROR'  # User hasnt connected a clock
-    NO_EBOARD_ERROR = 'MSG_NO_EBOARD_ERROR'  # User hasnt connected an E-Board
-    EBOARD_VERSION = 'MSG_EBOARD_VERSION'  # Startup Message after a successful connection to an E-Board
     SWITCH_SIDES = 'MSG_SWITCH_SIDES'  # Forget the engines move, and let it be user's turn
     KEYBOARD_MOVE = 'MSG_KEYBOARD_MOVE'  # Sends back the fen for a given move (needed for keyboard.py)
+    SYSTEM_SHUTDOWN = 'MSG_SYSTEM_SHUTDOWN'  # Sends a Shutdown
+    SYSTEM_REBOOT = 'MSG_SYSTEM_REBOOT'  # Sends a Reboot
+    SET_VOICE = 'MSG_SET_VOICE'  # User chooses a new voice
 
 
 class DgtApi():
-    # Commands to the DgtHw/Pi (or the virtual hardware)
+    # Commands to the DgtHw/DgtPi/DgtVr
     DISPLAY_MOVE = 'DGT_DISPLAY_MOVE'
     DISPLAY_TEXT = 'DGT_DISPLAY_TEXT'
     DISPLAY_TIME = 'DGT_DISPLAY_TIME'
@@ -191,6 +199,7 @@ class Mode(enum.Enum):
     KIBITZ = 'B00_mode_kibitz_menu'
     OBSERVE = 'B00_mode_observe_menu'
     REMOTE = 'B00_mode_remote_menu'
+    PONDER = 'B00_mode_ponder_menu'
 
 
 class ModeLoop(object):
@@ -208,13 +217,15 @@ class ModeLoop(object):
         elif m == Mode.OBSERVE:
             return Mode.REMOTE
         elif m == Mode.REMOTE:
+            return Mode.PONDER
+        elif m == Mode.PONDER:
             return Mode.NORMAL
-        return 'error ModeLoop next'
+        return 'errMoLoNext'
 
     @staticmethod
     def prev(m):
         if m == Mode.NORMAL:
-            return Mode.REMOTE
+            return Mode.PONDER
         elif m == Mode.ANALYSIS:
             return Mode.NORMAL
         elif m == Mode.KIBITZ:
@@ -223,7 +234,9 @@ class ModeLoop(object):
             return Mode.KIBITZ
         elif m == Mode.REMOTE:
             return Mode.OBSERVE
-        return 'error ModeLoop prev'
+        elif m == Mode.PONDER:
+            return Mode.REMOTE
+        return 'errMoLoPrev'
 
 
 @enum.unique
@@ -250,7 +263,7 @@ class TimeModeLoop(object):
             return TimeMode.FISCHER
         elif m == TimeMode.FISCHER:
             return TimeMode.FIXED
-        return 'error TimeMode next'
+        return 'errTiMoNext'
 
     @staticmethod
     def prev(m):
@@ -260,7 +273,7 @@ class TimeModeLoop(object):
             return TimeMode.FIXED
         elif m == TimeMode.FISCHER:
             return TimeMode.BLITZ
-        return 'error TimeMode prev'
+        return 'errTiMoPrev'
 
 
 class Settings(enum.Enum):
@@ -268,6 +281,8 @@ class Settings(enum.Enum):
     IPADR = 'B00_settings_ipadr_menu'
     SOUND = 'B00_settings_sound_menu'
     LANGUAGE = 'B00_settings_language_menu'
+    LOGFILE = 'B00_settings_logfile_menu'
+    VOICE = 'B00_settings_voice_menu'
 
 
 class SettingsLoop(object):
@@ -283,12 +298,20 @@ class SettingsLoop(object):
         elif m == Settings.SOUND:
             return Settings.LANGUAGE
         elif m == Settings.LANGUAGE:
+            return Settings.LOGFILE
+        elif m == Settings.LOGFILE:
+            return Settings.VOICE
+        elif m == Settings.VOICE:
             return Settings.VERSION
-        return 'error Setting next'
+        return 'errSetgNext'
 
     @staticmethod
     def prev(m):
         if m == Settings.VERSION:
+            return Settings.VOICE
+        if m == Settings.VOICE:
+            return Settings.LOGFILE
+        if m == Settings.LOGFILE:
             return Settings.LANGUAGE
         if m == Settings.LANGUAGE:
             return Settings.SOUND
@@ -296,7 +319,7 @@ class SettingsLoop(object):
             return Settings.IPADR
         elif m == Settings.IPADR:
             return Settings.VERSION
-        return 'error Setting prev'
+        return 'errSetgPrev'
 
 
 class Language(enum.Enum):
@@ -305,6 +328,7 @@ class Language(enum.Enum):
     NL = 'B00_language_nl_menu'
     FR = 'B00_language_fr_menu'
     ES = 'B00_language_es_menu'
+    IT = 'B00_language_it_menu'
 
 
 class LanguageLoop(object):
@@ -322,12 +346,16 @@ class LanguageLoop(object):
         elif m == Language.FR:
             return Language.ES
         elif m == Language.ES:
+            return Language.IT
+        elif m == Language.IT:
             return Language.EN
-        return 'error Language next'
+        return 'errLangNext'
 
     @staticmethod
     def prev(m):
         if m == Language.EN:
+            return Language.IT
+        if m == Language.IT:
             return Language.ES
         if m == Language.ES:
             return Language.FR
@@ -337,7 +365,7 @@ class LanguageLoop(object):
             return Language.DE
         elif m == Language.DE:
             return Language.EN
-        return 'error Language prev'
+        return 'errLangPrev'
 
 
 class Beep(enum.Enum):
@@ -358,7 +386,7 @@ class BeepLoop(object):
             return Beep.ON
         elif m == Beep.ON:
             return Beep.OFF
-        return 'error beep next'
+        return 'errBeepNext'
 
     @staticmethod
     def prev(m):
@@ -368,7 +396,13 @@ class BeepLoop(object):
             return Beep.SOME
         if m == Beep.SOME:
             return Beep.OFF
-        return 'error beep prev'
+        return 'errBeepPrev'
+
+
+@enum.unique
+class VoiceType(enum.Enum):
+    USER_VOICE = 'B00_voicetype_user_menu'
+    COMP_VOICE = 'B00_voicetype_comp_menu'
 
 
 @enum.unique
@@ -400,11 +434,20 @@ class BeepLevel(enum.Enum):
     MAP = 0x04  # All Events coming from Queen placing at start pos (line3-6)
     OKAY = 0x08  # All Events from "ok" (confirm) messages incl. "you move"
 
+
 @enum.unique
 class ClockSide(enum.Enum):
     LEFT = 0x01
     RIGHT = 0x02
     NONE = 0x04
+
+
+@enum.unique
+class ClockIcons(enum.Enum):
+    NONE = 0x00
+    COLON = 0x08
+    DOT = 0x10
+
 
 @enum.unique
 class DgtCmd(enum.Enum):
@@ -454,7 +497,10 @@ class DgtClk(enum.Enum):
     # can be displayed only by the DGT3000.
     DGT_CMD_CLOCK_START_MESSAGE = 0x03
     DGT_CMD_CLOCK_END_MESSAGE = 0x00
+    DGT_ACK_CLOCK_READY = 0x81
     DGT_ACK_CLOCK_BUTTON = 0x88  # Ack of a clock button
+    DGT_ACK_CLOCK_MODE = 0x8a
+    DGT_ACK_CLOCK_NOT_IN_MODE = 0x90
 
 
 class DgtMsg(enum.IntEnum):
@@ -593,7 +639,8 @@ def ClassFactory(name, argnames, BaseClass=BaseClass):
                 raise TypeError("argument %s not valid for %s" % (key, self.__class__.__name__))
             setattr(self, key, value)
         BaseClass.__init__(self, name)
-    newclass = type(name, (BaseClass,),{"__init__": __init__})
+
+    newclass = type(name, (BaseClass,), {"__init__": __init__})
     return newclass
 
 
@@ -631,33 +678,39 @@ class RepeatedTimer(object):
 
 
 class Dgt():
-    DISPLAY_MOVE = ClassFactory(DgtApi.DISPLAY_MOVE, ['move', 'fen', 'beep', 'maxtime', 'side', 'wait', 'ld', 'rd'])
-    DISPLAY_TEXT = ClassFactory(DgtApi.DISPLAY_TEXT, ['l', 'm', 's', 'beep', 'maxtime', 'wait', 'ld', 'rd'])
-    DISPLAY_TIME = ClassFactory(DgtApi.DISPLAY_TIME, ['wait', 'force'])
+    DISPLAY_MOVE = ClassFactory(DgtApi.DISPLAY_MOVE, ['move', 'fen', 'side', 'beep', 'maxtime', 'devs', 'wait', 'ld', 'rd'])
+    DISPLAY_TEXT = ClassFactory(DgtApi.DISPLAY_TEXT, ['l', 'm', 's', 'beep', 'maxtime', 'devs', 'wait', 'ld', 'rd'])
+    DISPLAY_TIME = ClassFactory(DgtApi.DISPLAY_TIME, ['wait', 'force', 'devs'])
     LIGHT_CLEAR = ClassFactory(DgtApi.LIGHT_CLEAR, [])
-    LIGHT_SQUARES = ClassFactory(DgtApi.LIGHT_SQUARES, ['squares'])
-    CLOCK_STOP = ClassFactory(DgtApi.CLOCK_STOP, [])
-    CLOCK_START = ClassFactory(DgtApi.CLOCK_START, ['time_left', 'time_right', 'side'])
-    CLOCK_VERSION = ClassFactory(DgtApi.CLOCK_VERSION, ['main', 'sub', 'attached'])
-    CLOCK_TIME = ClassFactory(DgtApi.CLOCK_TIME, ['time_left', 'time_right'])
+    LIGHT_SQUARES = ClassFactory(DgtApi.LIGHT_SQUARES, ['uci_move'])
+    CLOCK_STOP = ClassFactory(DgtApi.CLOCK_STOP, ['devs'])
+    CLOCK_START = ClassFactory(DgtApi.CLOCK_START, ['time_left', 'time_right', 'side', 'devs', 'wait'])
+    CLOCK_VERSION = ClassFactory(DgtApi.CLOCK_VERSION, ['main', 'sub', 'dev'])
+    CLOCK_TIME = ClassFactory(DgtApi.CLOCK_TIME, ['time_left', 'time_right', 'dev'])
 
 
 class Message():
     # Messages to display devices
-    COMPUTER_MOVE = ClassFactory(MessageApi.COMPUTER_MOVE, ['move', 'ponder', 'fen', 'turn', 'game', 'time_control', 'wait'])
+    COMPUTER_MOVE = ClassFactory(MessageApi.COMPUTER_MOVE, ['move', 'ponder', 'fen', 'turn', 'game', 'wait'])
     BOOK_MOVE = ClassFactory(MessageApi.BOOK_MOVE, [])
-    NEW_PV = ClassFactory(MessageApi.NEW_PV, ['pv', 'mode', 'fen', 'turn'])
+    NEW_PV = ClassFactory(MessageApi.NEW_PV, ['pv', 'mode', 'game'])
     REVIEW_MOVE = ClassFactory(MessageApi.REVIEW_MOVE, ['move', 'fen', 'turn', 'game', 'mode'])
     ENGINE_READY = ClassFactory(MessageApi.ENGINE_READY, ['eng', 'eng_text', 'engine_name', 'has_levels', 'has_960', 'ok_text'])
-    ENGINE_STARTUP = ClassFactory(MessageApi.ENGINE_STARTUP, ['shell', 'file', 'has_levels', 'has_960'])
+    ENGINE_STARTUP = ClassFactory(MessageApi.ENGINE_STARTUP, ['shell', 'file', 'level_index', 'has_levels', 'has_960'])
     ENGINE_FAIL = ClassFactory(MessageApi.ENGINE_FAIL, [])
     LEVEL = ClassFactory(MessageApi.LEVEL, ['level_text'])
-    TIME_CONTROL = ClassFactory(MessageApi.TIME_CONTROL, ['time_text', 'ok_text'])
+    TIME_CONTROL = ClassFactory(MessageApi.TIME_CONTROL, ['time_text', 'ok_text', 'time_control'])
     OPENING_BOOK = ClassFactory(MessageApi.OPENING_BOOK, ['book_text', 'ok_text'])
-    DGT_BUTTON = ClassFactory(MessageApi.DGT_BUTTON, ['button'])
+
+    DGT_BUTTON = ClassFactory(MessageApi.DGT_BUTTON, ['button', 'dev'])
     DGT_FEN = ClassFactory(MessageApi.DGT_FEN, ['fen'])
-    DGT_CLOCK_VERSION = ClassFactory(MessageApi.DGT_CLOCK_VERSION, ['main', 'sub', 'attached'])
-    DGT_CLOCK_TIME = ClassFactory(MessageApi.DGT_CLOCK_TIME, ['time_left', 'time_right'])
+    DGT_CLOCK_VERSION = ClassFactory(MessageApi.DGT_CLOCK_VERSION, ['main', 'sub', 'dev', 'text'])
+    DGT_CLOCK_TIME = ClassFactory(MessageApi.DGT_CLOCK_TIME, ['time_left', 'time_right', 'dev'])
+    DGT_SERIAL_NR = ClassFactory(MessageApi.DGT_SERIAL_NR, ['number'])
+    DGT_JACK_CONNECTED_ERROR = ClassFactory(MessageApi.DGT_JACK_CONNECTED_ERROR, [])
+    DGT_NO_CLOCK_ERROR = ClassFactory(MessageApi.DGT_NO_CLOCK_ERROR, ['text'])
+    DGT_NO_EBOARD_ERROR = ClassFactory(MessageApi.DGT_NO_EBOARD_ERROR, ['text'])
+    DGT_EBOARD_VERSION = ClassFactory(MessageApi.DGT_EBOARD_VERSION, ['text', 'channel'])
 
     INTERACTION_MODE = ClassFactory(MessageApi.INTERACTION_MODE, ['mode', 'mode_text', 'ok_text'])
     PLAY_MODE = ClassFactory(MessageApi.PLAY_MODE, ['play_mode', 'play_mode_text'])
@@ -665,22 +718,22 @@ class Message():
     COMPUTER_MOVE_DONE_ON_BOARD = ClassFactory(MessageApi.COMPUTER_MOVE_DONE_ON_BOARD, [])
     SEARCH_STARTED = ClassFactory(MessageApi.SEARCH_STARTED, ['engine_status'])
     SEARCH_STOPPED = ClassFactory(MessageApi.SEARCH_STOPPED, ['engine_status'])
-    USER_TAKE_BACK = ClassFactory(MessageApi.USER_TAKE_BACK, [])
-    CLOCK_START = ClassFactory(MessageApi.CLOCK_START, ['turn', 'time_control'])
-    CLOCK_STOP = ClassFactory(MessageApi.CLOCK_STOP, [])
+    TAKE_BACK = ClassFactory(MessageApi.TAKE_BACK, [])
+    CLOCK_START = ClassFactory(MessageApi.CLOCK_START, ['turn', 'time_control', 'devs'])
+    CLOCK_STOP = ClassFactory(MessageApi.CLOCK_STOP, ['devs'])
     USER_MOVE = ClassFactory(MessageApi.USER_MOVE, ['move', 'fen', 'turn', 'game'])
     GAME_ENDS = ClassFactory(MessageApi.GAME_ENDS, ['result', 'play_mode', 'game'])
 
     SYSTEM_INFO = ClassFactory(MessageApi.SYSTEM_INFO, ['info'])
     STARTUP_INFO = ClassFactory(MessageApi.STARTUP_INFO, ['info'])
-    NEW_SCORE = ClassFactory(MessageApi.NEW_SCORE, ['score', 'mate', 'mode'])
+    NEW_SCORE = ClassFactory(MessageApi.NEW_SCORE, ['score', 'mate', 'mode', 'turn'])
+    NEW_DEPTH = ClassFactory(MessageApi.NEW_DEPTH, ['depth'])
     ALTERNATIVE_MOVE = ClassFactory(MessageApi.ALTERNATIVE_MOVE, [])
-    JACK_CONNECTED_ERROR = ClassFactory(MessageApi.JACK_CONNECTED_ERROR, [])
-    NO_CLOCK_ERROR = ClassFactory(MessageApi.NO_CLOCK_ERROR, ['text'])
-    NO_EBOARD_ERROR = ClassFactory(MessageApi.NO_EBOARD_ERROR, ['text', 'is_pi'])
-    EBOARD_VERSION = ClassFactory(MessageApi.EBOARD_VERSION, ['text', 'channel'])
     SWITCH_SIDES = ClassFactory(MessageApi.SWITCH_SIDES, ['move'])
     KEYBOARD_MOVE = ClassFactory(MessageApi.KEYBOARD_MOVE, ['fen'])
+    SYSTEM_SHUTDOWN = ClassFactory(MessageApi.SYSTEM_SHUTDOWN, [])
+    SYSTEM_REBOOT = ClassFactory(MessageApi.SYSTEM_REBOOT, [])
+    SET_VOICE = ClassFactory(MessageApi.SET_VOICE, ['type', 'lang', 'speaker'])
 
 
 class Event():
@@ -698,16 +751,20 @@ class Event():
     PAUSE_RESUME = ClassFactory(EventApi.PAUSE_RESUME, [])
     SWITCH_SIDES = ClassFactory(EventApi.SWITCH_SIDES, ['engine_finished'])
     SET_TIME_CONTROL = ClassFactory(EventApi.SET_TIME_CONTROL, ['time_control', 'time_text', 'ok_text'])
-    SHUTDOWN = ClassFactory(EventApi.SHUTDOWN, [])
-    REBOOT = ClassFactory(EventApi.REBOOT, [])
+    SHUTDOWN = ClassFactory(EventApi.SHUTDOWN, ['dev'])
+    REBOOT = ClassFactory(EventApi.REBOOT, ['dev'])
     ALTERNATIVE_MOVE = ClassFactory(EventApi.ALTERNATIVE_MOVE, [])
-    # dgt events
-    DGT_BUTTON = ClassFactory(EventApi.DGT_BUTTON, ['button'])
-    DGT_FEN = ClassFactory(EventApi.DGT_FEN, ['fen'])
+    EMAIL_LOG = ClassFactory(EventApi.EMAIL_LOG, [])
+    SET_VOICE = ClassFactory(EventApi.SET_VOICE, ['type', 'lang', 'speaker'])
+    # Keyboard events
+    KEYBOARD_BUTTON = ClassFactory(EventApi.KEYBOARD_BUTTON, ['button', 'dev'])
+    KEYBOARD_FEN = ClassFactory(EventApi.KEYBOARD_FEN, ['fen'])
     # Engine events
     BEST_MOVE = ClassFactory(EventApi.BEST_MOVE, ['result', 'inbook'])
     NEW_PV = ClassFactory(EventApi.NEW_PV, ['pv'])
     NEW_SCORE = ClassFactory(EventApi.NEW_SCORE, ['score', 'mate'])
+    NEW_DEPTH = ClassFactory(EventApi.NEW_DEPTH, ['depth'])
+    # Timecontrol events
     OUT_OF_TIME = ClassFactory(EventApi.OUT_OF_TIME, ['color'])
 
 
@@ -721,7 +778,7 @@ def get_opening_books():
     library = []
     for section in config.sections():
         text = Dgt.DISPLAY_TEXT(l=config[section]['large'], m=config[section]['medium'], s=config[section]['small'],
-                                wait=True, beep=False, maxtime=0)
+                                wait=True, beep=False, maxtime=0, devs={'ser', 'i2c', 'web'})
         library.append(
             {
                 'file': 'books' + os.sep + section,
@@ -761,12 +818,12 @@ def update_picochess(auto_reboot=False):
                                           stdout=subprocess.PIPE).communicate()[0].decode(encoding='UTF-8')
                 logging.debug(output)
                 if auto_reboot:
-                    reboot()
+                    reboot(dev='web')
 
 
-def shutdown(dgtpi):
-    logging.debug('shutting down system')
-    time.sleep(1)  # give some time to send out the pgn file
+def shutdown(dgtpi, dev):
+    logging.debug('shutting down system requested by ({})'.format(dev))
+    time.sleep(2)  # give some time to send out the pgn file or speak the event
     if platform.system() == 'Windows':
         os.system('shutdown /s')
     elif dgtpi:
@@ -775,32 +832,25 @@ def shutdown(dgtpi):
         os.system('shutdown -h now')
 
 
-def reboot():
-    logging.debug('rebooting system')
-    time.sleep(1)  # give some time to send out the pgn file
+def reboot(dev):
+    logging.debug('rebooting system requested by ({})'.format(dev))
+    time.sleep(2)  # give some time to send out the pgn file or speak the event
     os.system('reboot')
-
-
-def get_ip():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        s.connect(('google.com', 80))
-        return s.getsockname()[0]
-
-    # TODO: Better handling of exceptions of socket connect
-    except socket.error:
-        logging.error("no internet connection!")
-    finally:
-        s.close()
 
 
 def get_location():
     try:
-        response = urllib.request.urlopen('http://www.telize.com/geoip/')
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('8.8.8.8', 80))
+        int_ip = s.getsockname()[0]
+        s.close()
+
+        response = urllib.request.urlopen('https://freegeoip.net/json/')
         j = json.loads(response.read().decode())
-        country = j['country'] + ' ' if 'country' in j else ''
+        country_name = j['country_name'] + ' ' if 'country_name' in j else ''
         country_code = j['country_code'] + ' ' if 'country_code' in j else ''
+        ext_ip = j['ip'] if 'ip' in j else None
         city = j['city'] + ', ' if 'city' in j else ''
-        return city + country + country_code
+        return city + country_name + country_code, ext_ip, int_ip
     except:
-        return '?'
+        return '?', None, None

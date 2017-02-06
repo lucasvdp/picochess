@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright (C) 2013-2016 Jean-Francois Romang (jromang@posteo.de)
+# Copyright (C) 2013-2017 Jean-Francois Romang (jromang@posteo.de)
 #                         Shivkumar Shivaji ()
 #                         Jürgen Précour (LocutusOfPenguin@posteo.de)
 #
@@ -34,11 +34,10 @@ def write_book_ini():
         if is_book(book_file_name):
             print(book_file_name)
             book = book_file_name[2:-4]
-            config[book_file_name] = {
-                'small': book[:6],
-                'medium': book[:8],
-                'large': book[:11]
-            }
+            config[book_file_name] = {}
+            config[book_file_name]['small'] = book[:6]
+            config[book_file_name]['medium'] = book[:8].title()
+            config[book_file_name]['large'] = book[:11].title()
     with open(books_path + os.sep + 'books.ini', 'w') as configfile:
         config.write(configfile)
 

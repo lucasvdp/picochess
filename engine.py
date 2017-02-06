@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2016 Jean-Francois Romang (jromang@posteo.de)
+# Copyright (C) 2013-2017 Jean-Francois Romang (jromang@posteo.de)
 #                         Shivkumar Shivaji ()
 #                         Jürgen Précour (LocutusOfPenguin@posteo.de)
 #
@@ -55,7 +55,7 @@ def read_engine_ini(engine_shell=None, engine_path=None):
                     level_dict[ps][option] = parser[ps][option]
 
         text = Dgt.DISPLAY_TEXT(l=config[section]['large'], m=config[section]['medium'], s=config[section]['small'],
-                                wait=True, beep=False, maxtime=0)
+                                wait=True, beep=False, maxtime=0, devs={'ser', 'i2c', 'web'})
         library.append(
             {
                 'file': engine_path + os.sep + section,
@@ -127,12 +127,12 @@ def write_engine_ini(engine_path=None):
                     name_medium = name_build(name_parts, 8, name_small)
                     name_large = name_build(name_parts, 11, name_medium)
 
-                    config[engine_file_name] = {
-                        'name': engine_name,
-                        'small': name_small,
-                        'medium': name_medium,
-                        'large': name_large
-                    }
+                    config[engine_file_name] = {}
+                    config[engine_file_name]['name'] = engine_name
+                    config[engine_file_name]['small'] = name_small
+                    config[engine_file_name]['medium'] = name_medium
+                    config[engine_file_name]['large'] = name_large
+
                 except AttributeError:
                     pass
                 engine.quit()
@@ -143,25 +143,24 @@ def write_engine_ini(engine_path=None):
 class Informer(chess.uci.InfoHandler):
     def __init__(self):
         super(Informer, self).__init__()
-        self.dep = 0
         self.allow_score = True
         self.allow_pv = True
+        self.allow_depth = True
 
     def on_go(self):
-        self.dep = 0
         self.allow_score = True
         self.allow_pv = True
+        self.allow_depth = True
         super().on_go()
-
-    def depth(self, dep):
-        self.dep = dep
-        super().depth(dep)
 
     def _reset_allow_score(self):
         self.allow_score = True
 
     def _reset_allow_pv(self):
         self.allow_pv = True
+
+    def _reset_allow_depth(self):
+        self.allow_depth = True
 
     def _allow_fire_score(self):
         if self.allow_score:
@@ -179,6 +178,14 @@ class Informer(chess.uci.InfoHandler):
         else:
             return False
 
+    def _allow_fire_depth(self):
+        if self.allow_depth:
+            self.allow_depth = False
+            Timer(0.5, self._reset_allow_depth).start()
+            return True
+        else:
+            return False
+
     def score(self, cp, mate, lowerbound, upperbound):
         if self._allow_fire_score():
             Observable.fire(Event.NEW_SCORE(score=cp, mate=mate))
@@ -188,6 +195,11 @@ class Informer(chess.uci.InfoHandler):
         if self._allow_fire_pv() and moves:
             Observable.fire(Event.NEW_PV(pv=moves))
         super().pv(moves)
+
+    def depth(self, dep):
+        if self._allow_fire_depth():
+            Observable.fire(Event.NEW_DEPTH(depth=dep))
+        super().depth(dep)
 
 
 class UciEngine(object):

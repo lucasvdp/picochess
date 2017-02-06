@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2016 Jean-Francois Romang (jromang@posteo.de)
+# Copyright (C) 2013-2017 Jean-Francois Romang (jromang@posteo.de)
 #                         Shivkumar Shivaji ()
 #                         Jürgen Précour (LocutusOfPenguin@posteo.de)
 #
@@ -37,14 +37,14 @@ _workers = ThreadPool(5)
 client_ips = []
 
 
-class ChannelHandler(tornado.web.RequestHandler):
+class ServerRequestHandler(tornado.web.RequestHandler):
+    def data_received(self, chunk):
+        pass
+
+
+class ChannelHandler(ServerRequestHandler):
     def initialize(self, shared=None):
         self.shared = shared
-
-    def real_ip(self):
-        x_real_ip = self.request.headers.get('X-Real-IP')
-        real_ip = self.request.remote_ip if not x_real_ip else x_real_ip
-        return real_ip
 
     def post(self):
         action = self.get_argument('action')
@@ -65,6 +65,12 @@ class EventHandler(WebSocketHandler):
     def initialize(self, shared=None):
         self.shared = shared
 
+    def on_message(self, message):
+        pass
+
+    def data_received(self, chunk):
+        pass
+
     def real_ip(self):
         x_real_ip = self.request.headers.get('X-Real-IP')
         real_ip = self.request.remote_ip if not x_real_ip else x_real_ip
@@ -84,7 +90,7 @@ class EventHandler(WebSocketHandler):
             client.write_message(msg)
 
 
-class DGTHandler(tornado.web.RequestHandler):
+class DGTHandler(ServerRequestHandler):
     def initialize(self, shared=None):
         self.shared = shared
 
@@ -95,7 +101,7 @@ class DGTHandler(tornado.web.RequestHandler):
                 self.write(self.shared['last_dgt_move_msg'])
 
 
-class InfoHandler(tornado.web.RequestHandler):
+class InfoHandler(ServerRequestHandler):
     def initialize(self, shared=None):
         self.shared = shared
 
@@ -109,7 +115,7 @@ class InfoHandler(tornado.web.RequestHandler):
                 self.write(self.shared['headers'])
 
 
-class ChessBoardHandler(tornado.web.RequestHandler):
+class ChessBoardHandler(ServerRequestHandler):
     def initialize(self, shared=None):
         self.shared = shared
 
@@ -165,14 +171,14 @@ class WebDisplay(DisplayMsg, threading.Thread):
             self.shared['system_info'] = {}
 
     def task(self, message):
-        def oldstyle_fen(g):
+        def oldstyle_fen(game):
             builder = []
-            builder.append(g.board_fen())
-            builder.append('w' if g.turn == chess.WHITE else 'b')
-            builder.append(g.castling_xfen())
-            builder.append(chess.SQUARE_NAMES[g.ep_square] if g.ep_square else '-')
-            builder.append(str(g.halfmove_clock))
-            builder.append(str(g.fullmove_number))
+            builder.append(game.board_fen())
+            builder.append('w' if game.turn == chess.WHITE else 'b')
+            builder.append(game.castling_xfen())
+            builder.append(chess.SQUARE_NAMES[game.ep_square] if game.ep_square else '-')
+            builder.append(str(game.halfmove_clock))
+            builder.append(str(game.fullmove_number))
             return ' '.join(builder)
 
         def create_game_header(pgn_game):
@@ -197,7 +203,7 @@ class WebDisplay(DisplayMsg, threading.Thread):
             if 'game_info' in self.shared:
                 if 'play_mode' in self.shared['game_info']:
                     if 'level_text' in self.shared['game_info']:
-                        engine_name += ' /{0}\\'.format(self.shared['game_info']['level_text'].m)
+                        engine_name += ' [{0}]'.format(self.shared['game_info']['level_text'].m)
                     pgn_game.headers['Black'] = \
                         engine_name if self.shared['game_info']['play_mode'] == PlayMode.USER_WHITE else user_name
                     pgn_game.headers['White'] = \
@@ -214,11 +220,11 @@ class WebDisplay(DisplayMsg, threading.Thread):
             self.shared['headers'] = pgn_game.headers
             EventHandler.write_to_clients({'event': 'header', 'headers': pgn_game.headers})
 
-        def transfer(g):
-            pgn_game = pgn.Game().from_board(g)
+        def transfer(game):
+            pgn_game = pgn.Game().from_board(game)
             create_game_header(pgn_game)
             return pgn_game.accept(pgn.StringExporter(headers=True, comments=False, variations=False))
-        
+
         for case in switch(message):
             if case(MessageApi.BOOK_MOVE):
                 EventHandler.write_to_clients({'event': 'Message', 'msg': 'Book move'})
@@ -228,9 +234,9 @@ class WebDisplay(DisplayMsg, threading.Thread):
                 fen = message.game.fen()
                 result = {'pgn': pgn_str, 'fen': fen}
                 self.shared['last_dgt_move_msg'] = result
-                p = message.game.chess960_pos()
-                if p:
-                    code_text = '' if p == 518 else ' - chess960 code {}'.format(p)
+                pos960 = message.game.chess960_pos()
+                if pos960:
+                    code_text = '' if pos960 == 518 else ' - chess960 code {}'.format(pos960)
                 else:
                     code_text = ' with setup'
                 EventHandler.write_to_clients({'event': 'NewGame', 'fen': fen})
@@ -253,7 +259,7 @@ class WebDisplay(DisplayMsg, threading.Thread):
                 update_headers()
                 break
             if case(MessageApi.STARTUP_INFO):
-                self.shared['game_info'] = message.info
+                self.shared['game_info'] = message.info.copy()
                 if message.info['level_text'] is None:
                     del self.shared['game_info']['level_text']
                 break
@@ -283,18 +289,24 @@ class WebDisplay(DisplayMsg, threading.Thread):
                 self.shared['game_info']['level_text'] = message.level_text
                 update_headers()
                 break
-            if case(MessageApi.JACK_CONNECTED_ERROR):
+            if case(MessageApi.DGT_JACK_CONNECTED_ERROR):
                 EventHandler.write_to_clients({'event': 'Message', 'msg': 'Unplug the jack cable please!'})
                 break
-            if case(MessageApi.NO_EBOARD_ERROR):
+            if case(MessageApi.DGT_NO_EBOARD_ERROR):
                 EventHandler.write_to_clients({'event': 'Message', 'msg': 'Connect an E-Board please!'})
                 break
-            if case(MessageApi.EBOARD_VERSION):
-                result = {'event': 'Message', 'msg': 'DGT board connected through ' + message.channel}
+            if case(MessageApi.DGT_EBOARD_VERSION):
+                result = {'event': 'Message', 'msg': message.text.l + ' connected through ' + message.channel}
                 EventHandler.write_to_clients(result)
                 break
             if case(MessageApi.DGT_CLOCK_VERSION):
-                result = {'event': 'Message', 'msg': 'DGT clock connected through ' + message.attached}
+                if message.dev == 'ser':
+                    attached = 'serial'
+                elif message.dev == 'i2c':
+                    attached = 'i2c'
+                else:
+                    attached = 'virtual'
+                result = {'event': 'Message', 'msg': 'DGT clock connected through ' + attached}
                 EventHandler.write_to_clients(result)
                 break
             if case(MessageApi.COMPUTER_MOVE):
@@ -348,4 +360,6 @@ class WebDisplay(DisplayMsg, threading.Thread):
         while True:
             # Check if we have something to display
             message = self.msg_queue.get()
+            # if repr(message) != MessageApi.DGT_SERIAL_NR:
+            #     logging.debug("received message from msg_queue: %s", message)
             self.create_task(message)

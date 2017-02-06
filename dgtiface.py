@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2016 Jean-Francois Romang (jromang@posteo.de)
+# Copyright (C) 2013-2017 Jean-Francois Romang (jromang@posteo.de)
 #                         Shivkumar Shivaji ()
 #                         Jürgen Précour (LocutusOfPenguin@posteo.de)
 #
@@ -20,15 +20,14 @@ from threading import Timer, Thread, Lock
 
 
 class DgtIface(DisplayDgt, Thread):
-    def __init__(self, dgtserial, dgttranslate):
+    def __init__(self, dgttranslate, msg_lock, dgtboard=None):
         super(DgtIface, self).__init__()
 
-        self.dgtserial = dgtserial
+        self.dgtboard = dgtboard
         self.dgttranslate = dgttranslate
 
         self.enable_dgt_3000 = False
-        self.enable_dgt_pi = self.dgtserial.is_pi
-        self.clock_found = False
+        self.enable_ser_clock = False
         self.time_left = None
         self.time_right = None
 
@@ -39,17 +38,17 @@ class DgtIface(DisplayDgt, Thread):
         # delayed task array
         self.tasks = []
         self.do_process = True
-        self.msg_lock = Lock()
+        self.msg_lock = msg_lock
 
         self.display_hash = None  # Hash value of clock's display
 
-    def display_text_on_clock(self, text, beep=False, left_dots=0, right_dots=0):
+    def display_text_on_clock(self, message):
         raise NotImplementedError()
 
-    def display_move_on_clock(self, move, fen, side, beep=False, left_dots=0, right_dots=0):
+    def display_move_on_clock(self, message):
         raise NotImplementedError()
 
-    def display_time_on_clock(self, force=False):
+    def display_time_on_clock(self, message):
         raise NotImplementedError()
 
     def light_squares_revelation_board(self, squares):
@@ -58,88 +57,82 @@ class DgtIface(DisplayDgt, Thread):
     def clear_light_revelation_board(self):
         raise NotImplementedError()
 
-    def stop_clock(self):
+    def stop_clock(self, devs):
         raise NotImplementedError()
 
-    def resume_clock(self, side):
+    def _resume_clock(self, side):
         raise NotImplementedError()
 
-    def start_clock(self, time_left, time_right, side):
+    def start_clock(self, time_left, time_right, side, devs):
         raise NotImplementedError()
 
-    def stopped_maxtimer(self):
+    def _stopped_maxtimer(self):
         self.maxtimer_running = False
         if self.clock_running:
             logging.debug('showing the running clock again')
-            # self.display_time_on_clock(force=False)
-            self.show(Dgt.DISPLAY_TIME(force=False, wait=True))
+            self.show(Dgt.DISPLAY_TIME(force=False, wait=True, devs={'ser', 'i2c', 'web'}))
         else:
             logging.debug('clock not running - ignored maxtime')
         if self.tasks:
             logging.debug('processing delayed tasks: {}'.format(self.tasks))
         while self.tasks:
             message = self.tasks.pop(0)
-            self.process_message(message)
+            self._process_message(message)
             if self.maxtimer_running:  # run over the task list until a maxtime command was processed
                 break
 
-    def handle_message(self, message):
+    def _handle_message(self, message):
         for case in switch(message):
             if case(DgtApi.DISPLAY_MOVE):
-                ld = message.ld if hasattr(message, 'ld') else 0
-                rd = message.rd if hasattr(message, 'rd') else 0
-                self.display_move_on_clock(message.move, message.fen, message.side, message.beep, ld, rd)
+                self.display_move_on_clock(message)
                 break
             if case(DgtApi.DISPLAY_TEXT):
-                if self.enable_dgt_pi:
-                    text = message.l
-                else:
-                    text = message.m if self.enable_dgt_3000 else message.s
-                if text is None:
-                    text = message.m
-                ld = message.ld if hasattr(message, 'ld') else 0
-                rd = message.rd if hasattr(message, 'rd') else 0
-                self.display_text_on_clock(text, message.beep, ld, rd)
+                self.display_text_on_clock(message)
                 break
             if case(DgtApi.DISPLAY_TIME):
-                self.display_time_on_clock(message.force)
+                self.display_time_on_clock(message)
                 break
             if case(DgtApi.LIGHT_CLEAR):
                 self.clear_light_revelation_board()
                 break
             if case(DgtApi.LIGHT_SQUARES):
-                self.light_squares_revelation_board(message.squares)
+                self.light_squares_revelation_board(message.uci_move)
                 break
             if case(DgtApi.CLOCK_STOP):
-                self.clock_running = False
-                self.stop_clock()
+                if self.clock_running:
+                    self.stop_clock(message.devs)
+                else:
+                    logging.debug('clock is already stopped')
                 break
             if case(DgtApi.CLOCK_START):
-                self.clock_running = (message.side != ClockSide.NONE)
                 # log times
                 l_hms = hours_minutes_seconds(message.time_left)
                 r_hms = hours_minutes_seconds(message.time_right)
                 logging.debug('last time received from clock l:{} r:{}'.format(self.time_left, self.time_right))
                 logging.debug('sending time to clock l:{} r:{}'.format(l_hms, r_hms))
-                self.start_clock(message.time_left, message.time_right, message.side)
+                self.start_clock(message.time_left, message.time_right, message.side, message.devs)
                 break
             if case(DgtApi.CLOCK_VERSION):
-                if not self.clock_found:
-                    self.show(self.dgttranslate.text('Y20_picochess'))
-                self.clock_found = True
-                if message.main == 2:
-                    self.enable_dgt_3000 = True
+                text = self.dgttranslate.text('Y20_picochess', devs={message.dev})
+                text.rd = ClockIcons.DOT
+                self.show(text)
+                self.show(Dgt.DISPLAY_TIME(force=True, wait=True, devs={message.dev}))
+                if message.dev != 'i2c':
+                    self.enable_ser_clock = True
+                    if message.main == 2:
+                        self.enable_dgt_3000 = True
                 break
             if case(DgtApi.CLOCK_TIME):
+                logging.debug('({}) clock: received time from clock l:{} r:{}'.format(message.dev, message.time_left, message.time_right))
                 self.time_left = message.time_left
                 self.time_right = message.time_right
                 break
             if case():  # Default
                 pass
 
-    def process_message(self, message):
+    def _process_message(self, message):
         do_handle = True
-        if repr(message) in (DgtApi.CLOCK_START, DgtApi.CLOCK_STOP):
+        if repr(message) in (DgtApi.CLOCK_START, DgtApi.CLOCK_STOP, DgtApi.CLOCK_TIME):
             self.display_hash = None  # Cant know the clock display if command changing the running status
         else:
             if repr(message) in (DgtApi.DISPLAY_MOVE, DgtApi.DISPLAY_TEXT):
@@ -149,16 +142,19 @@ class DgtIface(DisplayDgt, Thread):
                     self.display_hash = hash(message)
 
         if do_handle:
-            logging.debug("handle DgtApi: %s", message)
+            logging.debug("handle DgtApi: {} at {}".format(message, self.__class__.__name__))
             if hasattr(message, 'maxtime') and message.maxtime > 0:
-                self.maxtimer = Timer(message.maxtime * self.time_factor, self.stopped_maxtimer)
+                self.maxtimer = Timer(message.maxtime * self.time_factor, self._stopped_maxtimer)
                 self.maxtimer.start()
                 logging.debug('showing {} for {} secs'.format(message, message.maxtime * self.time_factor))
                 self.maxtimer_running = True
+            # logging.info('wait for msg_lock at {}'.format(self.__class__.__name__))
             with self.msg_lock:
-                self.handle_message(message)
+                # logging.info('done for msg_lock at {}'.format(self.__class__.__name__))
+                self._handle_message(message)
+                # logging.info('handled at {}'.format(self.__class__.__name__))
         else:
-            logging.debug("ignore DgtApi: %s", message)
+            logging.debug("ignore DgtApi: {} at {}".format(message, self.__class__.__name__))
 
     def run(self):
         logging.info('dgt_queue ready')
@@ -188,7 +184,7 @@ class DgtIface(DisplayDgt, Thread):
                     logging.debug('max timer not running')
 
                 if self.do_process:
-                    self.process_message(message)
+                    self._process_message(message)
                 else:
                     logging.debug('task delayed: {}'.format(message))
             except queue.Empty:

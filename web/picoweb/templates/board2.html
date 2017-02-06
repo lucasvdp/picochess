@@ -7,7 +7,6 @@
 
     <title>Picochess Webserver</title>
     <link rel="stylesheet" href="/static/css/ladda-themeless.min.css"/>
-    <link rel="stylesheet" href="/static/css/custom.css"/>
 
     <link rel="stylesheet" href="/static/css/bootstrap-3.3.7.min.css"/>
     <link rel="stylesheet" href="/static/css/material-design/ripples.min.css"/>
@@ -16,6 +15,7 @@
     <link rel="stylesheet" href="/static/css/normalize-4.1.1.css"/>
     <link rel="stylesheet" href="/static/css/chessboard.css"/>
     <link rel="stylesheet" href="/static/css/font-awesome.min.css"/>
+    <link rel="stylesheet" href="/static/css/custom.css"/>
 
     <script src="/static/js/jquery-1.12.4.min.js"></script>
     <script src="/static/js/bootstrap-3.3.7.min.js"></script>
@@ -37,7 +37,7 @@
 <body>
 <div class="container-fluid">
     <div class="row">
-        <div class="col-sm-6">
+        <div class="col-xs-6">
             <div id="board_panel" class="panel panel-primary">
                 <div class="panel-body" style="position:relative;">
                     <div id="board" style="margin-bottom: 10px;"></div>
@@ -46,34 +46,64 @@
                         <p id="DGTClockStatus"></p>
                     </div>
                     <div class="pull-right">
-                        <div id="gameControls" class="btn-group">
-                            <button type="button" id="startBtn" class="btn btn-default"><i class='fa fa-fast-backward'></i></button>
-                            <button type="button" id="backBtn" class="btn btn-default"><i class='fa fa-arrow-left'></i></button>
-                            <button type="button" id="fwdBtn" class="btn btn-default"><i class='fa fa-arrow-right'></i></button>
-                            <button type="button" id="endBtn" class="btn btn-default"><i class='fa fa-fast-forward'></i></button>
+                        <div id="gameControls">
+                            <button type="button" id="startBtn" class="btn btn-default btn-xs"><i class='fa fa-fast-backward'></i></button>
+                            <button type="button" id="backBtn" class="btn btn-default btn-xs"><i class='fa fa-arrow-left'></i></button>
+                            <button type="button" id="fwdBtn" class="btn btn-default btn-xs"><i class='fa fa-arrow-right'></i></button>
+                            <button type="button" id="endBtn" class="btn btn-default btn-xs"><i class='fa fa-fast-forward'></i></button>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="col-sm-6">
+        <div class="col-xs-6">
             <div class="panel panel-primary">
-                <div class="panel-heading">
+                <div class="panel-heading hidden-xs">
                     <h3 class="panel-title">Actions</h3>
                 </div>
                 <div class="panel-body">
-                    <div class="btn-group pull-right">
-                        <button type="button" id="flipOrientationBtn" class="btn btn-raised btn-default btn-sm"><i class='fa fa-refresh'></i>Flip</button>
-                        <button type="button" id="DgtSyncBtn" class="btn btn-raised btn-warning btn-sm"><i class='fa fa-delicious'></i>Sync</button>
-                        <button type="button" id="downloadBtn" class="btn btn-raised btn-info btn-sm"><i class='fa fa-download'></i>Get PGN</button>
-                        <button type="button" id="broadcastBtn" class="btn btn-raised btn-success btn-sm"><i class='fa fa-cloud-download'></i>Broadcast</button>
+                    <div class="pull-right">
+                        <button type="button" id="flipOrientationBtn" class="btn btn-raised btn-default btn-xs text-break">
+                            <i class='fa fa-refresh'></i><span class="hidden-xs"> Flip</span>
+                        </button>
+                        <button type="button" id="DgtSyncBtn" class="btn btn-raised btn-warning btn-xs text-break">
+                            <i class='fa fa-delicious'></i><span class="hidden-xs"> Sync</span>
+                        </button>
+                        <button type="button" id="downloadBtn" class="btn btn-raised btn-info btn-xs text-break">
+                            <i class='fa fa-download'></i><span class="hidden-xs"> Get PGN</span>
+                        </button>
+                        <button type="button" id="broadcastBtn" class="btn btn-raised btn-success btn-xs text-break">
+                            <i class='fa fa-cloud-download'></i><span class="hidden-xs"> Broadcast</span>
+                        </button>
                     </div>
+                    <!--
+                    <p class="pull-left">
+                        <button type="button" id="button0" class="btn btn-raised btn-default btn-xs">
+                            <i class='fa fa-backward'></i>
+                        </button>
+                        <button type="button" id="button1" class="btn btn-raised btn-default btn-xs">
+                            <i class='fa fa-minus'></i>
+                        </button>
+                        <button type="button" id="button2" class="btn btn-raised btn-default btn-xs">
+                            <i class='fa fa-pause'></i>
+                        </button>
+                        <button type="button" id="button3" class="btn btn-raised btn-default btn-xs">
+                            <i class='fa fa-plus'></i>
+                        </button>
+                        <button type="button" id="button4" class="btn btn-raised btn-default btn-xs">
+                            <i class='fa fa-forward'></i>
+                        </button>
+                        <button type="button" id="lever" class="btn btn-raised btn-success btn-xs">
+                            <i class='fa fa-retweet'></i>
+                        </button>
+                    </p>
+                    -->
                 </div>
             </div>
 
             <div class="panel panel-primary">
-                <div class="panel-heading">
+                <div class="panel-heading hidden-xs">
                     <h3 class="panel-title">Game record</h3>
                 </div>
 
@@ -141,32 +171,31 @@
 
             </div>
         </div>
-    </div>
 
-    <div class="row col-sm-12">
+        <div class="col-xs-12 flip-scroll">
 
-        <div class="well">
-            <div class="tab-content clearfix">
-                <div class="tab-pane active" id="reference">
-                    <table id="GameStatsTable" cellpadding="0" cellspacing="0" style="width: 100%; align: center; overflow: auto" class="table-condensed table-bordered table-responsive flat-table flat-table-1">
-                        <thead>
-                            <tr>
-                                <th data-dynatable-column="white">White</th>
-                                <th data-dynatable-column="white_elo">White Elo</th>
-                                <th data-dynatable-column="black">Black</th>
-                                <th data-dynatable-column="black_elo">Black Elo</th>
-                                <th data-dynatable-column="result">Result</th>
-                                <th data-dynatable-column="date">Date</th>
-                                <th data-dynatable-column="event">Event</th>
-                                <th data-dynatable-column="site">Site</th>
-                                <th data-dynatable-column="eco">ECO</th>
-                            </tr>
-                        </thead>
-                    </table>
+            <div class="well">
+                <div class="tab-content clearfix">
+                    <div class="tab-pane active" id="reference">
+                        <table id="GameStatsTable" cellpadding="0" cellspacing="0" style="width: 100%; align: center; overflow: auto" class="table-condensed table-bordered table-responsive flat-table flat-table-1">
+                            <thead>
+                                <tr>
+                                    <th data-dynatable-column="white">White</th>
+                                    <th data-dynatable-column="white_elo">White Elo</th>
+                                    <th data-dynatable-column="black">Black</th>
+                                    <th data-dynatable-column="black_elo">Black Elo</th>
+                                    <th data-dynatable-column="result">Result</th>
+                                    <th data-dynatable-column="date">Date</th>
+                                    <th data-dynatable-column="event">Event</th>
+                                    <th data-dynatable-column="site">Site</th>
+                                    <th data-dynatable-column="eco">ECO</th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
-
     </div>
 </div>
 

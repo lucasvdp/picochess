@@ -1,4 +1,4 @@
-# Copyright (C) 2013-2016 Jean-Francois Romang (jromang@posteo.de)
+# Copyright (C) 2013-2017 Jean-Francois Romang (jromang@posteo.de)
 #                         Shivkumar Shivaji ()
 #                         Jürgen Précour (LocutusOfPenguin@posteo.de)
 #
@@ -33,10 +33,11 @@ class KeyboardInput(Observable, threading.Thread):
 
     def fire_no_board_connection(self):
         text = self.dgttranslate.text('N00_noboard', 'Board!')
-        DisplayMsg.show(Message.NO_EBOARD_ERROR(text=text, is_pi=self.is_pi))
+        DisplayMsg.show(Message.DGT_NO_EBOARD_ERROR(text=text))
 
     def run(self):
         logging.info('evt_queue ready')
+        print('\033[1;37;40m')
         print('#' * 42 + ' PicoChess v' + version + ' ' + '#' * 42)
         print('To play a move enter the from-to squares like "e2e4". To play this move on board, enter "go".')
         print('When the computer displays its move, also type "go" to actually do it on the board (see above).')
@@ -45,9 +46,9 @@ class KeyboardInput(Observable, threading.Thread):
         print('')
         print('This console mode is mainly for development. Better activate picochess together with a DGT-Board ;-)')
         print('#' * 100)
-        print('')
+        print('\033[1;37;40m')
         while True:
-            raw = input('PicoChess v'+version+':>').strip()
+            raw = input('PicoChess v'+version+'$').strip()
             if not raw:
                 continue
             cmd = raw.lower()
@@ -58,16 +59,16 @@ class KeyboardInput(Observable, threading.Thread):
                     print(chess.Board(fen))
                 else:
                     if not self.board_plugged_in and not cmd.startswith('plug:'):
-                        print('The command isnt accepted cause the virtual board is not plugged in')
+                        print('\033[1;31;40mThe command isnt accepted cause the virtual board is not plugged in\033[1;37;40m')
                         continue
                     if cmd.startswith('newgame:'):
                         side = cmd.split(':')[1]
                         if side == 'w':
                             self.flip_board = False
-                            self.fire(Event.DGT_FEN(fen='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR'))
+                            self.fire(Event.KEYBOARD_FEN(fen='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR'))
                         elif side == 'b':
                             self.flip_board = True
-                            self.fire(Event.DGT_FEN(fen='RNBKQBNR/PPPPPPPP/8/8/8/8/pppppppp/rnbkqbnr'))
+                            self.fire(Event.KEYBOARD_FEN(fen='RNBKQBNR/PPPPPPPP/8/8/8/8/pppppppp/rnbkqbnr'))
                         else:
                             raise ValueError(side)
                     elif cmd.startswith('setup:'):
@@ -84,20 +85,20 @@ class KeyboardInput(Observable, threading.Thread):
                         fen = raw.split(':')[1]
                         # dgt board only sends the basic fen => be sure
                         # it's same no matter what fen the user entered
-                        self.fire(Event.DGT_FEN(fen=fen.split(' ')[0]))
+                        self.fire(Event.KEYBOARD_FEN(fen=fen.split(' ')[0]))
                     elif cmd.startswith('button:'):
                         button = int(cmd.split(':')[1])
                         if button not in range(6):
                             raise ValueError(button)
                         if button == 5:  # make it to power button
                             button = 0x11
-                        self.fire(Event.DGT_BUTTON(button=button))
+                        self.fire(Event.KEYBOARD_BUTTON(button=button, dev='i2c' if self.is_pi else 'ser'))
                     elif cmd.startswith('lever:'):
                         lever = cmd.split(':')[1]
                         if lever not in ('l', 'r'):
                             raise ValueError(lever)
                         button = 0x40 if lever == 'r' else -0x40
-                        self.fire(Event.DGT_BUTTON(button=button))
+                        self.fire(Event.KEYBOARD_BUTTON(button=button, dev='i2c' if self.is_pi else 'ser'))
                     elif cmd.startswith('plug:'):
                         plug = cmd.split(':')[1]
                         if plug not in ('in', 'off'):
@@ -106,16 +107,17 @@ class KeyboardInput(Observable, threading.Thread):
                             self.board_plugged_in = True
                             self.rt.stop()
                             text_l, text_m, text_s = 'VirtBoard  ', 'V-Board ', 'vboard'
-                            text = Dgt.DISPLAY_TEXT(l=text_l, m=text_m, s=text_s, wait=True, beep=False, maxtime=1)
-                            DisplayMsg.show(Message.EBOARD_VERSION(text=text, channel='console'))
+                            text = Dgt.DISPLAY_TEXT(l=text_l, m=text_m, s=text_s,
+                                                    wait=True, beep=False, maxtime=1, devs={'ser', 'i2c', 'web'})
+                            DisplayMsg.show(Message.DGT_EBOARD_VERSION(text=text, channel='console'))
                         if plug == 'off':
                             self.board_plugged_in = False
                             self.rt.start()
                     elif cmd.startswith('go'):
                         if keyboard_last_fen is not None:
-                            self.fire(Event.DGT_FEN(fen=keyboard_last_fen))
+                            self.fire(Event.KEYBOARD_FEN(fen=keyboard_last_fen))
                         else:
-                            print('last move already send to virtual board')
+                            print('\033[1;31;40mlast move already send to virtual board\033[1;37;40m')
                     # end simulation code
                     else:
                         # move => fen => virtual board sends fen
@@ -135,20 +137,22 @@ class TerminalDisplay(DisplayMsg, threading.Thread):
         while True:
             # Check if we have something to display
             message = self.msg_queue.get()
+            # if repr(message) != MessageApi.DGT_SERIAL_NR:
+            #     logging.debug("received message from msg_queue: %s", message)
             for case in switch(message):
                 if case(MessageApi.COMPUTER_MOVE):
-                    print('\n' + message.fen)
+                    print('\033[1;37;40m\n' + message.fen)
                     print(message.game)
-                    print(message.game.fen() + '\n')
+                    print(message.game.fen() + '\n\033[1;37;40m')
                     keyboard_last_fen = message.game.fen().split(' ')[0]
                     break
                 if case(MessageApi.COMPUTER_MOVE_DONE_ON_BOARD):
                     keyboard_last_fen = None
                     break
                 if case(MessageApi.USER_MOVE):
-                    print('\n' + message.fen)
+                    print('\033[1;37;40m\n' + message.fen)
                     print(message.game)
-                    print(message.game.fen() + '\n')
+                    print(message.game.fen() + '\n\033[1;37;40m')
                     keyboard_last_fen = None
                     break
                 if case(MessageApi.START_NEW_GAME):
@@ -156,19 +160,19 @@ class TerminalDisplay(DisplayMsg, threading.Thread):
                     break
                 if case(MessageApi.SEARCH_STARTED):
                     if message.engine_status == EngineStatus.THINK:
-                        print('Computer starts thinking')
+                        print('\033[1;33;40mComputer starts thinking\033[1;37;40m')
                     if message.engine_status == EngineStatus.PONDER:
-                        print('Computer starts pondering')
+                        print('\033[1;33;40mComputer starts pondering\033[1;37;40m')
                     if message.engine_status == EngineStatus.WAIT:
-                        print('Computer starts waiting - hmmm')
+                        print('\033[1;31;40mComputer starts waiting - hmmm\033[1;37;40m')
                     break
                 if case(MessageApi.SEARCH_STOPPED):
                     if message.engine_status == EngineStatus.THINK:
-                        print('Computer stops thinking')
+                        print('\033[1;33;40mComputer stops thinking\033[1;37;40m')
                     if message.engine_status == EngineStatus.PONDER:
-                        print('Computer stops pondering')
+                        print('\033[1;33;40mComputer stops pondering\033[1;37;40m')
                     if message.engine_status == EngineStatus.WAIT:
-                        print('Computer stops waiting - hmmm')
+                        print('\033[1;31;40mComputer stops waiting - hmmm\033[1;37;40m')
                     break
                 if case(MessageApi.KEYBOARD_MOVE):
                     keyboard_last_fen = message.fen
