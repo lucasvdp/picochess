@@ -110,6 +110,9 @@ class InfoHandler(ServerRequestHandler):
         if action == 'get_system_info':
             if 'system_info' in self.shared:
                 self.write(self.shared['system_info'])
+        if action == 'get_ip_info':
+            if 'ip_info' in self.shared:
+                self.write(self.shared['ip_info'])
         if action == 'get_headers':
             if 'headers' in self.shared:
                 self.write(self.shared['headers'])
@@ -170,6 +173,10 @@ class WebDisplay(DisplayMsg, threading.Thread):
         if 'system_info' not in self.shared:
             self.shared['system_info'] = {}
 
+    def create_ip_info(self):
+        if 'ip_info' not in self.shared:
+            self.shared['ip_info'] = {}
+
     def task(self, message):
         def oldstyle_fen(game):
             builder = []
@@ -193,8 +200,6 @@ class WebDisplay(DisplayMsg, threading.Thread):
             user_name = 'User'
             engine_name = 'Picochess'
             if 'system_info' in self.shared:
-                if 'location' in self.shared['system_info']:
-                    pgn_game.headers['Site'] = self.shared['system_info']['location']
                 if 'user_name' in self.shared['system_info']:
                     user_name = self.shared['system_info']['user_name']
                 if 'engine_name' in self.shared['system_info']:
@@ -214,11 +219,18 @@ class WebDisplay(DisplayMsg, threading.Thread):
                     pgn_game.headers[comp_color + 'Elo'] = '2900'
                     pgn_game.headers[user_color + 'Elo'] = '-'
 
+            if 'ip_info' in self.shared:
+                if 'location' in self.shared['ip_info']:
+                    pgn_game.headers['Site'] = self.shared['ip_info']['location']
+
         def update_headers():
             pgn_game = pgn.Game()
             create_game_header(pgn_game)
             self.shared['headers'] = pgn_game.headers
             EventHandler.write_to_clients({'event': 'header', 'headers': pgn_game.headers})
+
+        def update_title():
+            EventHandler.write_to_clients({'event': 'title', 'ip_info': self.shared['ip_info']})
 
         def transfer(game):
             pgn_game = pgn.Game().from_board(game)
@@ -244,7 +256,12 @@ class WebDisplay(DisplayMsg, threading.Thread):
                 update_headers()
                 break
             if case(MessageApi.SEARCH_STARTED):
-                EventHandler.write_to_clients({'event': 'Message', 'msg': 'Thinking..'})
+                EventHandler.write_to_clients({'event': 'Message', 'msg': 'Thinking...'})
+                break
+            if case(MessageApi.IP_INFO):
+                self.shared['ip_info'] = message.info
+                update_headers()
+                update_title()
                 break
             if case(MessageApi.SYSTEM_INFO):
                 self.shared['system_info'] = message.info
@@ -260,12 +277,18 @@ class WebDisplay(DisplayMsg, threading.Thread):
                 break
             if case(MessageApi.STARTUP_INFO):
                 self.shared['game_info'] = message.info.copy()
+                # change book_index to book_text
+                books = message.info['books']
+                book_index = message.info['book_index']
+                self.shared['game_info']['book_text'] = books[book_index]['text']
+                del self.shared['game_info']['book_index']
+
                 if message.info['level_text'] is None:
                     del self.shared['game_info']['level_text']
                 break
             if case(MessageApi.OPENING_BOOK):
                 self.create_game_info()
-                self.shared['game_info']['book_index'] = message.book_text  # @todo fixit
+                self.shared['game_info']['book_text'] = message.book_text
                 break
             if case(MessageApi.INTERACTION_MODE):
                 self.create_game_info()
@@ -290,10 +313,16 @@ class WebDisplay(DisplayMsg, threading.Thread):
                 update_headers()
                 break
             if case(MessageApi.DGT_JACK_CONNECTED_ERROR):
-                EventHandler.write_to_clients({'event': 'Message', 'msg': 'Unplug the jack cable please!'})
+                result = {'event': 'Message', 'msg': 'Unplug the jack cable please!'}
+                EventHandler.write_to_clients(result)
+                break
+            if case(MessageApi.DGT_NO_CLOCK_ERROR):
+                # result = {'event': 'Message', 'msg': 'Connect a clock please!'}
+                # EventHandler.write_to_clients(result)
                 break
             if case(MessageApi.DGT_NO_EBOARD_ERROR):
-                EventHandler.write_to_clients({'event': 'Message', 'msg': 'Connect an E-Board please!'})
+                result = {'event': 'Message', 'msg': 'Connect an E-Board please!'}
+                EventHandler.write_to_clients(result)
                 break
             if case(MessageApi.DGT_EBOARD_VERSION):
                 result = {'event': 'Message', 'msg': message.text.l + ' connected through ' + message.channel}

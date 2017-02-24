@@ -15,12 +15,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+from chess import Board
 from utilities import *
 from threading import Timer, Thread, Lock
+from dgttranslate import DgtTranslate
 
 
 class DgtIface(DisplayDgt, Thread):
-    def __init__(self, dgttranslate, msg_lock, dgtboard=None):
+    def __init__(self, dgttranslate: DgtTranslate, msg_lock: Lock, dgtboard=None):
         super(DgtIface, self).__init__()
 
         self.dgtboard = dgtboard
@@ -148,13 +150,23 @@ class DgtIface(DisplayDgt, Thread):
                 self.maxtimer.start()
                 logging.debug('showing {} for {} secs'.format(message, message.maxtime * self.time_factor))
                 self.maxtimer_running = True
-            # logging.info('wait for msg_lock at {}'.format(self.__class__.__name__))
             with self.msg_lock:
-                # logging.info('done for msg_lock at {}'.format(self.__class__.__name__))
                 self._handle_message(message)
-                # logging.info('handled at {}'.format(self.__class__.__name__))
         else:
             logging.debug("ignore DgtApi: {} at {}".format(message, self.__class__.__name__))
+
+    def get_san(self, message, is_xl=False):
+        bit_board = Board(message.fen)
+        if bit_board.is_legal(message.move):
+            move_text = bit_board.san(message.move)
+        else:
+            logging.warning('illegal move found fen: {} move: {}'.format(message.fen, message.move))
+            move_text = 'err {}'.format(message.move.uci()[:4])
+
+        if message.side == ClockSide.RIGHT:
+            move_text = move_text.rjust(6 if is_xl else 8)
+        text = self.dgttranslate.move(move_text)
+        return bit_board, text
 
     def run(self):
         logging.info('dgt_queue ready')

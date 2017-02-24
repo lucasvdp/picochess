@@ -23,7 +23,6 @@ import os
 import configargparse
 import chess
 import chess.polyglot
-import chess.gaviota
 import chess.uci
 import threading
 import copy
@@ -41,9 +40,9 @@ from dgthw import DgtHw
 from dgtpi import DgtPi
 from dgtvr import DgtVr
 from dgtdisplay import DgtDisplay
-# from dgtserial import DgtSerial
 from dgtboard import DgtBoard
 from dgttranslate import DgtTranslate
+from dgtmenu import DgtMenu
 
 from logging.handlers import RotatingFileHandler
 from configobj import ConfigObj
@@ -86,12 +85,10 @@ class AlternativeMover:
 
 def main():
 
-    def display_system_info():
+    def display_ip_info():
         location, ext_ip, int_ip = get_location()
-        DisplayMsg.show(Message.SYSTEM_INFO(info={'version': version, 'location': location,
-                                                  'ext_ip': ext_ip, 'int_ip': int_ip,
-                                                  'engine_name': engine_name, 'user_name': user_name
-                                                  }))
+        info = {'location': location, 'ext_ip': ext_ip, 'int_ip': int_ip, 'version': version}
+        DisplayMsg.show(Message.IP_INFO(info=info))
 
     def compute_legal_fens(g):
         """
@@ -106,14 +103,6 @@ def main():
             g.pop()
         return fens
 
-    def probe_tablebase(game):
-        if not gaviota:
-            return None
-        score = gaviota.get_dtm(game)
-        if score is not None:
-            Observable.fire(Event.NEW_SCORE(score='gaviota', mate=score))
-        return score
-
     def think(game, tc):
         """
         Start a new search on the current game.
@@ -125,7 +114,6 @@ def main():
         if book_move:
             Observable.fire(Event.BEST_MOVE(result=book_move, inbook=True))
         else:
-            probe_tablebase(game)
             while not engine.is_waiting():
                 time.sleep(0.1)
                 logging.warning('engine is still not waiting')
@@ -139,7 +127,6 @@ def main():
         Start a new ponder search on the current game.
         :return:
         """
-        probe_tablebase(game)
         engine.position(copy.deepcopy(game))
         engine.ponder()
 
@@ -391,22 +378,22 @@ def main():
                 return 1
 
         if len(time_list) == 1:
-            secs = num(time_list[0])
-            time_control = TimeControl(TimeMode.FIXED, seconds_per_move=secs)
-            text = dgttranslate.text('B00_tc_fixed', '{:2d}'.format(secs))
+            fixed = num(time_list[0])
+            timec = TimeControl(TimeMode.FIXED, fixed=fixed)
+            textc = dgttranslate.text('B00_tc_fixed', '{:2d}'.format(fixed))
         elif len(time_list) == 2:
-            mins = num(time_list[0])
-            finc = num(time_list[1])
-            if finc == 0:
-                time_control = TimeControl(TimeMode.BLITZ, minutes_per_game=mins)
-                text = dgttranslate.text('B00_tc_blitz', '{:2d}'.format(mins))
+            blitz = num(time_list[0])
+            fisch = num(time_list[1])
+            if fisch == 0:
+                timec = TimeControl(TimeMode.BLITZ, blitz=blitz)
+                textc = dgttranslate.text('B00_tc_blitz', '{:2d}'.format(blitz))
             else:
-                time_control = TimeControl(TimeMode.FISCHER, minutes_per_game=mins, fischer_increment=finc)
-                text = dgttranslate.text('B00_tc_fisch', '{:2d} {:2d}'.format(mins, finc))
+                timec = TimeControl(TimeMode.FISCHER, blitz=blitz, fischer=fisch)
+                textc = dgttranslate.text('B00_tc_fisch', '{:2d} {:2d}'.format(blitz, fisch))
         else:
-            time_control = TimeControl(TimeMode.BLITZ, minutes_per_game=5)
-            text = dgttranslate.text('B00_tc_blitz', ' 5')
-        return time_control, text
+            timec = TimeControl(TimeMode.BLITZ, blitz=5)
+            textc = dgttranslate.text('B00_tc_blitz', ' 5')
+        return timec, textc
 
     def get_engine_level_dict(engine_level):
         from engine import get_installed_engines
@@ -428,20 +415,22 @@ def main():
 
     # Command line argument parsing
     parser = configargparse.ArgParser(default_config_files=[os.path.join(os.path.dirname(__file__), 'picochess.ini')])
-    parser.add_argument('-e', '--engine', type=str, help='UCI engine executable path', default=None)
+    parser.add_argument('-e', '--engine', type=str, help="UCI engine executable path such as 'engines/armv7l/a-stockf'",
+                        default=None)
     parser.add_argument('-el', '--engine-level', type=str, help='UCI engine level', default=None)
     parser.add_argument('-ers', '--engine-remote-server', type=str, help='adress of the remote engine server')
     parser.add_argument('-eru', '--engine-remote-user', type=str, help='username for the remote engine server')
     parser.add_argument('-erp', '--engine-remote-pass', type=str, help='password for the remote engine server')
     parser.add_argument('-erk', '--engine-remote-key', type=str, help='key file for the remote engine server')
+    parser.add_argument('-erh', '--engine-remote-home', type=str, help='engine home path for the remote engine server',
+                        default='/opt/picochess')
     parser.add_argument('-d', '--dgt-port', type=str,
                         help='enable dgt board on the given serial port such as /dev/ttyUSB0')
-    parser.add_argument('-b', '--book', type=str, help='full path of book such as books/b-flank.bin',
+    parser.add_argument('-b', '--book', type=str, help="path of book such as 'books/b-flank.bin'",
                         default='books/h-varied.bin')
     parser.add_argument('-t', '--time', type=str, default='5 0',
                         help="Time settings <FixSec> or <StMin IncSec> like '10'(move) or '5 0'(game) '3 2'(fischer)")
-    parser.add_argument('-g', '--enable-gaviota', action='store_true', help='enable gavoita tablebase probing')
-    parser.add_argument('-rl', '--enable-revelation-leds', action='store_true', help='enable Revelation leds')
+    parser.add_argument('-norl', '--disable-revelation-leds', action='store_true', help='disable Revelation leds')
     parser.add_argument('-l', '--log-level', choices=['notset', 'debug', 'info', 'warning', 'error', 'critical'],
                         default='warning', help='logging level')
     parser.add_argument('-lf', '--log-file', type=str, help='log to the given file')
@@ -454,7 +443,7 @@ def main():
     parser.add_argument('-mu', '--smtp-user', type=str, help='username for email server', default=None)
     parser.add_argument('-mp', '--smtp-pass', type=str, help='password for email server', default=None)
     parser.add_argument('-me', '--smtp-encryption', action='store_true',
-                        help='use ssl encryption connection to smtp-Server')
+                        help='use ssl encryption connection to email server')
     parser.add_argument('-mf', '--smtp-from', type=str, help='From email', default='no-reply@picochess.org')
     parser.add_argument('-mk', '--mailgun-key', type=str, help='key used to send emails via Mailgun Webservice',
                         default=None)
@@ -466,12 +455,12 @@ def main():
     parser.add_argument('-cv', '--computer-voice', type=str, help='voice for computer', default='en:mute')
     parser.add_argument('-u', '--enable-update', action='store_true', help='enable picochess updates')
     parser.add_argument('-ur', '--enable-update-reboot', action='store_true', help='reboot system after update')
-    parser.add_argument('-nook', '--disable-ok-message', action='store_true', help='disable ok confirmation messages')
+    parser.add_argument('-nocm', '--disable-confirm-message', action='store_true', help='disable confirmation messages')
     parser.add_argument('-v', '--version', action='version', version='%(prog)s version {}'.format(version),
                         help='show current version', default=None)
     parser.add_argument('-pi', '--dgtpi', action='store_true', help='use the dgtpi hardware')
-    parser.add_argument('-pt', '--ponder-time', type=int, default=2, choices=range(1,11),
-                        help='how long each part of ponder display should be visible (default=2secs)')
+    parser.add_argument('-pt', '--ponder-interval', type=int, default=3, choices=range(1,9),
+                        help='how long each part of ponder display should be visible (default=3secs)')
     parser.add_argument('-lang', '--language', choices=['en', 'de', 'nl', 'fr', 'es', 'it'], default='en',
                         help='picochess language')
     parser.add_argument('-c', '--console', action='store_true', help='use console interface')
@@ -496,25 +485,14 @@ def main():
     p['mailgun_key'] = p['engine_remote_key'] = p['engine_remote_pass'] = p['smtp_pass'] = '*****'
     logging.debug('startup parameters: {}'.format(p))
     if unknown:
-        logging.error('invalid parameter given {}'.format(unknown))
-    # Update
-    if args.enable_update:
-        update_picochess(args.enable_update_reboot)
-
-    gaviota = None
-    if args.enable_gaviota:
-        try:
-            gaviota = chess.gaviota.open_tablebases('tablebases/gaviota')
-            logging.debug('Tablebases gaviota loaded')
-        except OSError:
-            logging.error('Tablebases gaviota doesnt exist')
-            gaviota = None
+        logging.warning('invalid parameter given {}'.format(unknown))
 
     dgttranslate = DgtTranslate(args.beep_config, args.beep_some_level, args.language)
+    dgtmenu = DgtMenu(args.disable_confirm_message, args.ponder_interval, dgttranslate)
     time_control, time_text = transfer_time(args.time.split())
     time_text.beep = False
     # The class dgtDisplay talks to DgtHw/DgtPi or DgtVr
-    DgtDisplay(args.disable_ok_message, args.ponder_time, dgttranslate, time_control).start()
+    DgtDisplay(dgttranslate, dgtmenu, time_control).start()
 
     # Launch web server
     if args.web_server_port:
@@ -528,8 +506,8 @@ def main():
     else:
         logging.debug('PicoTalker disabled')
 
-    dgtboard = DgtBoard(args.dgt_port, args.enable_revelation_leds, args.dgtpi)
-    my_lock = threading.Lock()
+    dgtboard = DgtBoard(args.dgt_port, args.disable_revelation_leds, args.dgtpi)
+    my_lock = threading.Lock()  # @todo this is not the correct way (DgtPi & DgtHw are independent)
 
     if args.console:
         # Enable keyboard input and terminal display
@@ -549,7 +527,7 @@ def main():
         smtp_server=args.smtp_server, smtp_user=args.smtp_user,
         smtp_pass=args.smtp_pass, smtp_encryption=args.smtp_encryption, smtp_from=args.smtp_from)
 
-    PgnDisplay(args.pgn_file, emailer).start()
+    PgnDisplay('games' + os.sep + args.pgn_file, emailer).start()
     if args.pgn_user:
         user_name = args.pgn_user
     else:
@@ -558,9 +536,13 @@ def main():
         else:
             user_name = 'Player'
 
+    # Update
+    if args.enable_update:
+        update_picochess(args.dgtpi, args.enable_update_reboot, dgttranslate)
+
     # Gentlemen, start your engines...
     engine = UciEngine(args.engine, hostname=args.engine_remote_server, username=args.engine_remote_user,
-                       key_file=args.engine_remote_key, password=args.engine_remote_pass)
+                       key_file=args.engine_remote_key, password=args.engine_remote_pass, home=args.engine_remote_home)
     try:
         engine_name = engine.get().name
     except AttributeError:
@@ -587,6 +569,7 @@ def main():
     last_legal_fens = []
     game_declared = False  # User declared resignation or draw
 
+    args.engine_level = None if args.engine_level == 'None' else args.engine_level
     engine_opt, level_index = get_engine_level_dict(args.engine_level)
     engine.startup(engine_opt)
 
@@ -601,9 +584,10 @@ def main():
                                                'time_control': time_control, 'time_text': time_text}))
     DisplayMsg.show(Message.ENGINE_STARTUP(shell=engine.get_shell(), file=engine.get_file(), level_index=level_index,
                                            has_levels=engine.has_levels(), has_960=engine.has_chess960()))
+    DisplayMsg.show(Message.SYSTEM_INFO(info={'version': version, 'engine_name': engine_name, 'user_name': user_name}))
 
-    system_info_thread = threading.Timer(0, display_system_info)
-    system_info_thread.start()
+    ip_info_thread = threading.Timer(10, display_ip_info)  # give RaspberyPi 10sec time to startup its network devices
+    ip_info_thread.start()
 
     # Event loop
     logging.info('evt_queue ready')
@@ -684,7 +668,7 @@ def main():
                             DisplayMsg.show(Message.ENGINE_READY(eng=event.eng, engine_name=engine_name,
                                                                  eng_text=event.eng_text,
                                                                  has_levels=engine.has_levels(),
-                                                                 has_960=engine.has_chess960(), ok_text=event.ok_text))
+                                                                 has_960=engine.has_chess960(), show_ok=event.show_ok))
                         else:
                             DisplayMsg.show(Message.ENGINE_FAIL())
                         set_wait_state(not engine_fallback)
@@ -708,13 +692,14 @@ def main():
                     last_computer_fen = None
                     time_control.reset()
                     searchmoves.reset()
-                    DisplayMsg.show(Message.START_NEW_GAME(time_control=time_control, game=game.copy()))
                     game_declared = False
                     set_wait_state()
+                    DisplayMsg.show(Message.START_NEW_GAME(time_control=time_control, game=game.copy(), newgame=True))
                     break
 
                 if case(EventApi.NEW_GAME):
-                    if game.move_stack or (game.chess960_pos() != event.pos960):
+                    newgame = game.move_stack or (game.chess960_pos() != event.pos960)
+                    if newgame:
                         logging.debug('starting a new game with code: {}'.format(event.pos960))
                         uci960 = event.pos960 != 518
 
@@ -734,11 +719,11 @@ def main():
                         last_computer_fen = None
                         time_control.reset()
                         searchmoves.reset()
-                        DisplayMsg.show(Message.START_NEW_GAME(time_control=time_control, game=game.copy()))
                         game_declared = False
                         set_wait_state()
                     else:
                         logging.debug('no need to start a new game')
+                    DisplayMsg.show(Message.START_NEW_GAME(time_control=time_control, game=game.copy(), newgame=newgame))
                     break
 
                 if case(EventApi.PAUSE_RESUME):
@@ -838,7 +823,7 @@ def main():
                     if engine.is_pondering():
                         stop_search()
                     set_wait_state()
-                    DisplayMsg.show(Message.INTERACTION_MODE(mode=event.mode, mode_text=event.mode_text, ok_text=event.ok_text))
+                    DisplayMsg.show(Message.INTERACTION_MODE(mode=event.mode, mode_text=event.mode_text, show_ok=event.show_ok))
                     break
 
                 if case(EventApi.SET_OPENING_BOOK):
@@ -847,7 +832,7 @@ def main():
                     config.write()
                     logging.debug("changing opening book [%s]", event.book['file'])
                     bookreader = chess.polyglot.open_reader(event.book['file'])
-                    DisplayMsg.show(Message.OPENING_BOOK(book_text=event.book_text, ok_text=event.ok_text))
+                    DisplayMsg.show(Message.OPENING_BOOK(book_text=event.book_text, show_ok=event.show_ok))
                     break
 
                 if case(EventApi.SET_TIME_CONTROL):
@@ -860,7 +845,7 @@ def main():
                     elif time_control.mode == TimeMode.FIXED:
                         config['time'] = '{:d}'.format(time_control.seconds_per_move)
                     config.write()
-                    DisplayMsg.show(Message.TIME_CONTROL(time_text=event.time_text, ok_text=event.ok_text, time_control=time_control))
+                    DisplayMsg.show(Message.TIME_CONTROL(time_text=event.time_text, show_ok=event.show_ok, time_control=time_control))
                     break
 
                 if case(EventApi.OUT_OF_TIME):
@@ -877,7 +862,7 @@ def main():
                 if case(EventApi.REBOOT):
                     DisplayMsg.show(Message.GAME_ENDS(result=GameResult.ABORT, play_mode=play_mode, game=game.copy()))
                     DisplayMsg.show(Message.SYSTEM_REBOOT())
-                    reboot(dev=event.dev)
+                    reboot(args.dgtpi, dev=event.dev)
                     break
 
                 if case(EventApi.EMAIL_LOG):
